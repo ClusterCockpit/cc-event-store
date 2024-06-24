@@ -1,0 +1,14 @@
+{
+    "testclusternats" : {
+        "type": "nats",
+        "address" : "localhost",
+        "port" : "4222",
+        "subject" : "testcluster"
+    },
+    "meggienats" : {
+        "type": "nats",
+        "address" : "localhost",
+        "port" : "4222",
+        "subject" : "meggie"
+    }
+}
