@@ -1,0 +1,5 @@
+{
+    "receivers": "./receivers.json",
+    "api": "./api.json",
+    "storage": "./storage.json"
+}
