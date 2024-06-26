@@ -110,11 +110,11 @@ func (a *api) Init(wg *sync.WaitGroup, store storage.StorageManager, apiConfigFi
 			cclog.ComponentError("REST", err.Error())
 		}
 		publicKey := ed25519.PublicKey(buf)
-		r.Handle("POST /api/write/{cluster}/", authHandler(http.HandlerFunc(a.HandleWrite), publicKey))
+		r.Handle("POST /api/write/", authHandler(http.HandlerFunc(a.HandleWrite), publicKey))
 		r.Handle("GET /api/query/", authHandler(http.HandlerFunc(a.HandleQuery), publicKey))
 	} else {
-		r.HandleFunc("POST /api/write/{cluster}/", a.HandleWrite)
-		r.HandleFunc("GET /api/query", a.HandleQuery)
+		r.HandleFunc("POST /api/write/", a.HandleWrite)
+		r.HandleFunc("GET /api/query/", a.HandleQuery)
 	}
 
 	addr := fmt.Sprintf("%s:%s", a.config.Addr, a.config.Port)

@@ -1,6 +1,6 @@
 module github.com/ClusterCockpit/cc-event-store
 
-go 1.22.4
+go 1.22
 
 require (
 	github.com/ClusterCockpit/cc-metric-collector v0.6.7

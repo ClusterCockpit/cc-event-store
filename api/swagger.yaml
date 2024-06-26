@@ -120,14 +120,15 @@ paths:
       summary: Query events
       tags:
       - query
-  /write/{cluster}/:
+  /write/:
     post:
       consumes:
       - text/plain
       description: Receive events in line-protocol
       parameters:
-      - description: Cluster to store events
-        in: path
+      - description: If the lines in the body do not have a cluster tag, use this
+          value instead.
+        in: query
         name: cluster
         required: true
         type: string

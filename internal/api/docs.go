@@ -80,7 +80,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/write/{cluster}/": {
+        "/write/": {
             "post": {
                 "security": [
                     {
@@ -101,9 +101,9 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Cluster to store events",
+                        "description": "If the lines in the body do not have a cluster tag, use this value instead.",
                         "name": "cluster",
-                        "in": "path",
+                        "in": "query",
                         "required": true
                     }
                 ],

@@ -3,6 +3,7 @@ package api
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -134,17 +135,21 @@ func (a *api) HandleQuery(w http.ResponseWriter, r *http.Request) {
 // @description Receive events in line-protocol
 // @accept      plain
 // @produce     json
-// @param       cluster      path     string                   true "Cluster to store events"
+// @param       cluster        query string true "If the lines in the body do not have a cluster tag, use this value instead."
 // @success     200            {string} string  "ok"
 // @failure     400            {object} api.ErrorResponse       "Bad Request"
 // @failure     401      {object} api.ErrorResponse       "Unauthorized"
 // @failure     500            {object} api.ErrorResponse       "Internal Server Error"
 // @security    ApiKeyAuth
-// @router      /write/{cluster}/ [post]
+// @router      /write/ [post]
 func (a *api) HandleWrite(w http.ResponseWriter, r *http.Request) {
 	cclog.ComponentDebug("REST", "HandleWrite")
 
-	cluster := r.PathValue("cluster")
+	cluster := r.URL.Query().Get("cluster")
+	if cluster == "" {
+		handleError(errors.New("query parameter cluster is required"), http.StatusBadRequest, w)
+		return
+	}
 
 	d := influx.NewDecoder(r.Body)
 	for d.Next() {
