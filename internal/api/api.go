@@ -2,82 +2,65 @@ package api
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
-	"os"
-	"sync"
 	"time"
 
-	"github.com/ClusterCockpit/cc-event-store/internal/storage"
 	cclog "github.com/ClusterCockpit/cc-metric-collector/pkg/ccLogger"
 	lp "github.com/ClusterCockpit/cc-metric-collector/pkg/ccMetric"
-	"github.com/gorilla/mux"
 	influx "github.com/influxdata/line-protocol/v2/lineprotocol"
 )
 
-type apiConfig struct {
-	Addr string `json:"address"`
-	Port string `json:"port"`
+// @title                      cc-event-store REST API
+// @version                    1.0.0
+// @description                API for cc-event-store
 
-	// Maximum amount of time to wait for the next request when keep-alives are enabled
-	// should be larger than the measurement interval to keep the connection open
-	IdleTimeout string `json:"idle_timeout"`
-	idleTimeout time.Duration
+// @contact.name               ClusterCockpit Project
+// @contact.url                https://clustercockpit.org
+// @contact.email              support@clustercockpit.org
 
-	// Controls whether HTTP keep-alives are enabled. By default, keep-alives are enabled
-	KeepAlivesEnabled bool `json:"keep_alives_enabled"`
+// @license.name               MIT License
+// @license.url                https://opensource.org/licenses/MIT
 
-	// Basic authentication
-	Username     string `json:"username"`
-	Password     string `json:"password"`
-	useBasicAuth bool
+// @host                       localhost:8098
+// @basePath                   /api/
+
+// @securityDefinitions.apikey ApiKeyAuth
+// @in                         header
+// @name                       X-Auth-Token
+//
+// ErrorResponse model
+type ErrorResponse struct {
+	// Statustext of Errorcode
+	Status string `json:"status"`
+	Error  string `json:"error"` // Error Message
 }
 
-type api struct {
-	wg      *sync.WaitGroup
-	started bool
-	server  *http.Server
-	store   storage.StorageManager
-	config  apiConfig
+func handleError(err error, statusCode int, rw http.ResponseWriter) {
+	// log.Warnf("REST ERROR : %s", err.Error())
+	rw.Header().Add("Content-Type", "application/json")
+	rw.WriteHeader(statusCode)
+	json.NewEncoder(rw).Encode(ErrorResponse{
+		Status: http.StatusText(statusCode),
+		Error:  err.Error(),
+	})
 }
 
-type API interface {
-	Init(wg *sync.WaitGroup, store storage.StorageManager, apiConfigFile string) error
-	Start()
-	Close()
-}
-
-type ApiQueryRequest struct {
-	Cluster     string     `json:"cluster"`
-	Queries     []ApiQuery `json:"queries"`
-	ForAllNodes []string   `json:"for-all-nodes"`
-	From        int64      `json:"from"`
-	To          int64      `json:"to"`
-}
-
-type ApiQuery struct {
-	Type       *string  `json:"type,omitempty"`
-	SubType    *string  `json:"subtype,omitempty"`
-	Event      string   `json:"event"`
-	Hostname   string   `json:"host"`
-	TypeIds    []string `json:"type-ids,omitempty"`
-	SubTypeIds []string `json:"subtype-ids,omitempty"`
-}
-
-type ApiQueryResponse struct {
-	Queries []ApiQuery        `json:"queries,omitempty"`
-	Results [][]ApiMetricData `json:"results"`
-}
-
-type ApiMetricData struct {
-	Error *string  `json:"error,omitempty"`
-	Data  []string `json:"data,omitempty"`
-	From  int64    `json:"from"`
-	To    int64    `json:"to"`
-}
-
+// handleQuery godoc
+// @summary    Query events
+// @tags query
+// @description Query events.
+// @accept      json
+// @produce     json
+// @param       request body     api.ApiQueryRequest  true "API query payload object"
+// @success     200            {object} api.ApiQueryResponse  "API query response object"
+// @failure     400            {object} api.ErrorResponse       "Bad Request"
+// @failure     401   		   {object} api.ErrorResponse       "Unauthorized"
+// @failure     500            {object} api.ErrorResponse       "Internal Server Error"
+// @security    ApiKeyAuth
+// @router      /query/ [get]
 func (a *api) HandleQuery(w http.ResponseWriter, r *http.Request) {
 	cclog.ComponentDebug("REST", "HandleQuery")
 	// if r.Method != http.MethodGet {
@@ -87,14 +70,6 @@ func (a *api) HandleQuery(w http.ResponseWriter, r *http.Request) {
 	// 	return
 	// }
 	// Check basic authentication
-	if a.config.useBasicAuth {
-		cclog.ComponentDebug("REST", "HandleQuery (BasicAuth)")
-		username, password, ok := r.BasicAuth()
-		if !ok || username != a.config.Username || password != a.config.Password {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-	}
 
 	// vars := mux.Vars(r)
 	// cclog.ComponentDebug("URL parameters:", vars)
@@ -113,7 +88,7 @@ func (a *api) HandleQuery(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		err = fmt.Errorf("failed to parse API request: %v", err.Error())
 		cclog.ComponentError("REST", err.Error())
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		handleError(err, http.StatusBadRequest, w)
 		return
 	}
 
@@ -134,6 +109,7 @@ func (a *api) HandleQuery(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				err = fmt.Errorf("failed to parse API request: %v", err.Error())
 				cclog.ComponentError("REST", err.Error())
+				handleError(err, http.StatusBadRequest, w)
 				return
 			}
 			resp.Results[i][j] = ApiMetricData{
@@ -148,41 +124,32 @@ func (a *api) HandleQuery(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(bw).Encode(resp); err != nil {
 		err = fmt.Errorf("failed to encode API response: %v", err.Error())
 		cclog.ComponentError("REST", err.Error())
+		handleError(err, http.StatusInternalServerError, w)
 		return
 	}
-
 }
 
+// handleWrite godoc
+// @summary    Receive events
+// @tags write
+// @description Receive events in line-protocol
+// @accept      plain
+// @produce     json
+// @param       cluster        query string true "If the lines in the body do not have a cluster tag, use this value instead."
+// @success     200            {string} string  "ok"
+// @failure     400            {object} api.ErrorResponse       "Bad Request"
+// @failure     401      {object} api.ErrorResponse       "Unauthorized"
+// @failure     500            {object} api.ErrorResponse       "Internal Server Error"
+// @security    ApiKeyAuth
+// @router      /write/ [post]
 func (a *api) HandleWrite(w http.ResponseWriter, r *http.Request) {
 	cclog.ComponentDebug("REST", "HandleWrite")
 
-	if r.Method != http.MethodPost {
-		msg := "Only POST method allowed"
-		http.Error(w, msg, http.StatusMethodNotAllowed)
-		cclog.ComponentError("REST", msg)
+	cluster := r.URL.Query().Get("cluster")
+	if cluster == "" {
+		handleError(errors.New("query parameter cluster is required"), http.StatusBadRequest, w)
 		return
 	}
-
-	// Check basic authentication
-	if a.config.useBasicAuth {
-		cclog.ComponentDebug("REST", "HandleWrite (BasicAuth)")
-		username, password, ok := r.BasicAuth()
-		if !ok || username != a.config.Username || password != a.config.Password {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-	}
-
-	vars := mux.Vars(r)
-	cclog.ComponentDebug("URL parameters:", vars)
-	if _, ok := vars["cluster"]; !ok {
-		cclog.ComponentDebug("REST", "HandleWrite (BasicAuth)")
-		msg := "HandleWrite: No cluster given as URL parameter"
-		cclog.ComponentError("REST", msg)
-		http.Error(w, msg, http.StatusBadRequest)
-		return
-	}
-	cluster := vars["cluster"]
 
 	d := influx.NewDecoder(r.Body)
 	for d.Next() {
@@ -192,7 +159,7 @@ func (a *api) HandleWrite(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			msg := "HandleWrite: Failed to decode measurement: " + err.Error()
 			cclog.ComponentError("REST", msg)
-			http.Error(w, msg, http.StatusInternalServerError)
+			handleError(err, http.StatusBadRequest, w)
 			return
 		}
 
@@ -203,7 +170,7 @@ func (a *api) HandleWrite(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				msg := "HandleWrite: Failed to decode tag: " + err.Error()
 				cclog.ComponentError("REST", msg)
-				http.Error(w, msg, http.StatusInternalServerError)
+				handleError(err, http.StatusInternalServerError, w)
 				return
 			}
 			if key == nil {
@@ -219,7 +186,7 @@ func (a *api) HandleWrite(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				msg := "HandleWrite: Failed to decode field: " + err.Error()
 				cclog.ComponentError("REST", msg)
-				http.Error(w, msg, http.StatusInternalServerError)
+				handleError(err, http.StatusInternalServerError, w)
 				return
 			}
 			if key == nil {
@@ -233,7 +200,7 @@ func (a *api) HandleWrite(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			msg := "HandleWrite: Failed to decode time stamp: " + err.Error()
 			cclog.ComponentError("REST", msg)
-			http.Error(w, msg, http.StatusInternalServerError)
+			handleError(err, http.StatusInternalServerError, w)
 			return
 		}
 
@@ -251,81 +218,9 @@ func (a *api) HandleWrite(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		msg := "HandleWrite: Failed to decode: " + err.Error()
 		cclog.ComponentError("REST", msg)
-		http.Error(w, msg, http.StatusInternalServerError)
+		handleError(err, http.StatusInternalServerError, w)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-}
-
-func (a *api) Init(wg *sync.WaitGroup, store storage.StorageManager, apiConfigFile string) error {
-	a.wg = wg
-	a.store = store
-	a.started = false
-
-	a.config.KeepAlivesEnabled = true
-	// should be larger than the measurement interval to keep the connection open
-	a.config.IdleTimeout = "120s"
-	a.config.useBasicAuth = false
-
-	// Read config
-	configFile, err := os.Open(apiConfigFile)
-	if err != nil {
-		cclog.Error(err.Error())
-		return err
-	}
-	defer configFile.Close()
-	jsonParser := json.NewDecoder(configFile)
-	err = jsonParser.Decode(&a.config)
-	if err != nil {
-		err = fmt.Errorf("failed to parse API config file %s: %v", apiConfigFile, err.Error())
-		cclog.ComponentError("REST", err.Error())
-		return err
-	}
-	r := mux.NewRouter()
-	r.HandleFunc("/write", a.HandleWrite).Queries("cluster", "{cluster}")
-	r.HandleFunc("/query", a.HandleQuery)
-	// Create http server
-	addr := fmt.Sprintf("%s:%s", a.config.Addr, a.config.Port)
-	a.server = &http.Server{
-		Addr:        addr,
-		Handler:     r, // handler to invoke, http.DefaultServeMux if nil
-		IdleTimeout: a.config.idleTimeout,
-	}
-	a.server.SetKeepAlivesEnabled(a.config.KeepAlivesEnabled)
-	cclog.ComponentDebug("REST", "Initialized REST API to listen at", addr)
-	return nil
-}
-
-func (a *api) Start() {
-	a.wg.Add(1)
-	go func() {
-		err := a.server.ListenAndServe()
-		if err != nil && err.Error() != "http: Server closed" {
-			cclog.ComponentError("REST", err.Error())
-		}
-		a.wg.Done()
-		cclog.ComponentDebug("REST", "DONE")
-	}()
-	a.started = true
-	cclog.ComponentDebug("REST", "STARTED")
-}
-
-func (a *api) Close() {
-	if a.started {
-		cclog.ComponentDebug("REST", "CLOSE")
-		a.server.Shutdown(context.Background())
-	}
-}
-
-func NewAPI(wg *sync.WaitGroup, store storage.StorageManager, apiConfigFile string) (API, error) {
-	a := new(api)
-
-	err := a.Init(wg, store, apiConfigFile)
-	if err != nil {
-		err = fmt.Errorf("failed to create new API: %v", err.Error())
-		cclog.ComponentError("REST", err.Error())
-		return nil, err
-	}
-	return a, nil
 }

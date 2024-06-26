@@ -1,4 +1,6 @@
 {
-	"addr": "127.0.0.1",
-	"port": "8098"
+  "address": "127.0.0.1",
+  "port": "8098",
+  "jwt_public_key": "kzfYrYy+TzpanWZHJ5qSdMj5uKUWgq74BWhQG6copP0=",
+  "enable_swagger_ui": true
 }
