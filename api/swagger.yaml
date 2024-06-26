@@ -1,0 +1,163 @@
+basePath: /api/
+definitions:
+  api.ApiMetricData:
+    properties:
+      data:
+        items:
+          type: string
+        type: array
+      error:
+        type: string
+      from:
+        type: integer
+      to:
+        type: integer
+    type: object
+  api.ApiQuery:
+    properties:
+      event:
+        type: string
+      host:
+        type: string
+      subtype:
+        type: string
+      subtype-ids:
+        items:
+          type: string
+        type: array
+      type:
+        type: string
+      type-ids:
+        items:
+          type: string
+        type: array
+    type: object
+  api.ApiQueryRequest:
+    properties:
+      cluster:
+        type: string
+      for-all-nodes:
+        items:
+          type: string
+        type: array
+      from:
+        type: integer
+      queries:
+        items:
+          $ref: '#/definitions/api.ApiQuery'
+        type: array
+      to:
+        type: integer
+    type: object
+  api.ApiQueryResponse:
+    properties:
+      queries:
+        items:
+          $ref: '#/definitions/api.ApiQuery'
+        type: array
+      results:
+        items:
+          items:
+            $ref: '#/definitions/api.ApiMetricData'
+          type: array
+        type: array
+    type: object
+  api.ErrorResponse:
+    properties:
+      error:
+        description: Error Message
+        type: string
+      status:
+        description: Statustext of Errorcode
+        type: string
+    type: object
+host: localhost:8098
+info:
+  contact:
+    email: support@clustercockpit.org
+    name: ClusterCockpit Project
+    url: https://clustercockpit.org
+  description: API for cc-event-store
+  license:
+    name: MIT License
+    url: https://opensource.org/licenses/MIT
+  title: cc-event-store REST API
+  version: 1.0.0
+paths:
+  /query/:
+    get:
+      consumes:
+      - application/json
+      description: Query events.
+      parameters:
+      - description: API query payload object
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.ApiQueryRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: API query response object
+          schema:
+            $ref: '#/definitions/api.ApiQueryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Query events
+      tags:
+      - query
+  /write/{cluster}/:
+    post:
+      consumes:
+      - text/plain
+      description: Receive events in line-protocol
+      parameters:
+      - description: Cluster to store events
+        in: path
+        name: cluster
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: ok
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Receive events
+      tags:
+      - write
+securityDefinitions:
+  ApiKeyAuth:
+    in: header
+    name: X-Auth-Token
+    type: apiKey
+swagger: "2.0"
