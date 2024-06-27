@@ -72,10 +72,14 @@ type ApiQueryResponse struct {
 }
 
 type ApiMetricData struct {
-	Error *string  `json:"error,omitempty"`
-	Data  []string `json:"data,omitempty"`
-	From  int64    `json:"from"`
-	To    int64    `json:"to"`
+	Error *string              `json:"error,omitempty"`
+	Data  []ApiMetricDataEntry `json:"data,omitempty"`
+	From  int64                `json:"from"`
+	To    int64                `json:"to"`
+}
+type ApiMetricDataEntry struct {
+	Time  int64  `json:"timestamp"`
+	Event string `json:"Event"`
 }
 
 func (a *api) Init(wg *sync.WaitGroup, store storage.StorageManager, apiConfigFile string) error {
@@ -112,9 +116,11 @@ func (a *api) Init(wg *sync.WaitGroup, store storage.StorageManager, apiConfigFi
 		publicKey := ed25519.PublicKey(buf)
 		r.Handle("POST /api/write/", authHandler(http.HandlerFunc(a.HandleWrite), publicKey))
 		r.Handle("GET /api/query/", authHandler(http.HandlerFunc(a.HandleQuery), publicKey))
+		r.Handle("GET /api/free/", authHandler(http.HandlerFunc(a.HandleDelete), publicKey))
 	} else {
 		r.HandleFunc("POST /api/write/", a.HandleWrite)
 		r.HandleFunc("GET /api/query/", a.HandleQuery)
+		r.HandleFunc("GET /api/free/", a.HandleDelete)
 	}
 
 	addr := fmt.Sprintf("%s:%s", a.config.Addr, a.config.Port)

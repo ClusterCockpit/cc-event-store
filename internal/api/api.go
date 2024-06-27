@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
+	"strconv"
 	"time"
 
 	cclog "github.com/ClusterCockpit/cc-metric-collector/pkg/ccLogger"
@@ -95,25 +97,56 @@ func (a *api) HandleQuery(w http.ResponseWriter, r *http.Request) {
 	resp := ApiQueryResponse{
 		Results: make([][]ApiMetricData, 0, len(req.Queries)),
 	}
-	for i, q := range req.Queries {
-		resp.Results[i] = make([]ApiMetricData, 0, len(q.TypeIds))
-		for j, t := range q.TypeIds {
+
+	do_query := func(cluster, event, hostname string, from, to int64, conditions []string) (ApiMetricData, error) {
+		res, err := a.store.Query(cluster, event, hostname, from, to, conditions)
+		if err != nil {
+			err = fmt.Errorf("failed to parse API request: %v", err.Error())
+			return ApiMetricData{}, err
+		}
+		d := ApiMetricData{
+			Data: make([]ApiMetricDataEntry, 0, len(res)),
+		}
+		for _, r := range res {
+			d.Data = append(d.Data, ApiMetricDataEntry{
+				Event: r.Event,
+				Time:  r.Timestamp,
+			})
+		}
+		return d, nil
+	}
+
+	for qid, q := range req.Queries {
+		for _, t := range q.TypeIds {
 
 			conditions := make([]string, 0)
-			conditions = append(conditions, fmt.Sprintf("type-id == %s", t))
+			conditions = append(conditions, fmt.Sprintf("type-id = %s", t))
 			if len(*q.Type) > 0 {
-				conditions = append(conditions, fmt.Sprintf("type == %s", *q.Type))
+				conditions = append(conditions, fmt.Sprintf("type = %s", *q.Type))
 			}
+			if len(q.SubTypeIds) > 0 {
+				subconditions := slices.Clone(conditions)
+				if len(*q.SubType) > 0 {
+					subconditions = append(subconditions, fmt.Sprintf("stype = %s", *q.SubType))
+				}
+				for _, st := range q.SubTypeIds {
+					subconditions = append(subconditions, fmt.Sprintf("stype-id = %s", st))
 
-			res, err := a.store.Query(req.Cluster, q.Event, q.Hostname, req.From, req.To, conditions)
-			if err != nil {
-				err = fmt.Errorf("failed to parse API request: %v", err.Error())
-				cclog.ComponentError("REST", err.Error())
-				handleError(err, http.StatusBadRequest, w)
-				return
-			}
-			resp.Results[i][j] = ApiMetricData{
-				Data: res,
+				}
+				d, err := do_query(req.Cluster, q.Event, q.Hostname, req.From, req.To, subconditions)
+				if err != nil {
+					cclog.ComponentError("REST", err.Error())
+					handleError(err, http.StatusBadRequest, w)
+				}
+				resp.Results[qid] = append(resp.Results[qid], d)
+
+			} else {
+				d, err := do_query(req.Cluster, q.Event, q.Hostname, req.From, req.To, conditions)
+				if err != nil {
+					cclog.ComponentError("REST", err.Error())
+					handleError(err, http.StatusBadRequest, w)
+				}
+				resp.Results[qid] = append(resp.Results[qid], d)
 			}
 		}
 	}
@@ -220,6 +253,50 @@ func (a *api) HandleWrite(w http.ResponseWriter, r *http.Request) {
 		cclog.ComponentError("REST", msg)
 		handleError(err, http.StatusInternalServerError, w)
 		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+// HandleDelete godoc
+// @summary    Delete events
+// @tags free
+// @description Delete events before given timestamp
+// @accept      plain
+// @produce     json
+// @param       cluster        query string true "If the lines in the body do not have a cluster tag, use this value instead."
+// @param       to        	   query string true "Delete events before this UNIX timestamp in seconds."
+// @success     200            {string} string  "ok"
+// @failure     400            {object} api.ErrorResponse       "Bad Request"
+// @failure     401            {object} api.ErrorResponse       "Unauthorized"
+// @failure     500            {object} api.ErrorResponse       "Internal Server Error"
+// @security    ApiKeyAuth
+// @router      /free/ [post]
+func (a *api) HandleDelete(w http.ResponseWriter, r *http.Request) {
+	cclog.ComponentDebug("REST", "HandleDelete")
+	cluster := r.URL.Query().Get("cluster")
+	if cluster == "" {
+		handleError(errors.New("query parameter cluster is required"), http.StatusBadRequest, w)
+		return
+	}
+	to_string := r.URL.Query().Get("to")
+	if cluster == "" {
+		handleError(errors.New("query parameter to is required"), http.StatusBadRequest, w)
+		return
+	}
+
+	to, err := strconv.ParseInt(to_string, 10, 64)
+	if err != nil {
+		msg := "HandleDelete: Failed to parse " + to_string + ": " + err.Error()
+		cclog.ComponentError("REST", msg)
+		handleError(err, http.StatusInternalServerError, w)
+	}
+
+	err = a.store.Delete(cluster, to)
+	if err != nil {
+		msg := fmt.Sprintf("HandleDelete: Failed to delete events for cluster %s before %d: %v", cluster, to, err.Error())
+		cclog.ComponentError("REST", msg)
+		handleError(err, http.StatusInternalServerError, w)
 	}
 
 	w.WriteHeader(http.StatusOK)

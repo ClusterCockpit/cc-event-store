@@ -25,7 +25,8 @@ type StorageManager interface {
 	Close()
 	SetWriteInput(input chan lp.CCMetric)
 	Submit(cluster string, event lp.CCMetric) error
-	Query(cluster, event, hostname string, from, to int64, conditions []string) ([]string, error)
+	Query(cluster, event, hostname string, from, to int64, conditions []string) ([]QueryResultEvent, error)
+	Delete(cluster string, to int64) error
 }
 
 func (sm *storageManger) Start() error {
@@ -83,7 +84,7 @@ func (sm *storageManger) Submit(cluster string, event lp.CCMetric) error {
 	return nil
 }
 
-func (sm *storageManger) Query(cluster, event, hostname string, from, to int64, conditions []string) ([]string, error) {
+func (sm *storageManger) Query(cluster, event, hostname string, from, to int64, conditions []string) ([]QueryResultEvent, error) {
 	if sme, ok := sm.clusters[cluster]; ok {
 		cclog.ComponentDebug("StorageManager", "Query", cluster)
 		return sme.store.Query(QueryRequest{
@@ -94,7 +95,15 @@ func (sm *storageManger) Query(cluster, event, hostname string, from, to int64, 
 			Conditions: conditions,
 		})
 	}
-	return nil, fmt.Errorf("query for unknown cluster %s", cluster)
+	return nil, fmt.Errorf("query request for unknown cluster %s", cluster)
+}
+
+func (sm *storageManger) Delete(cluster string, to int64) error {
+	if sme, ok := sm.clusters[cluster]; ok {
+		cclog.ComponentDebug("StorageManager", "Query", cluster)
+		return sme.store.Delete(to)
+	}
+	return fmt.Errorf("delete request for unknown cluster %s", cluster)
 }
 
 func NewStorageManager(wg *sync.WaitGroup, configFile string) (StorageManager, error) {
