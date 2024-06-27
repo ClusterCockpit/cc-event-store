@@ -11,21 +11,24 @@ import (
 
 	cclog "github.com/ClusterCockpit/cc-metric-collector/pkg/ccLogger"
 	lp "github.com/ClusterCockpit/cc-metric-collector/pkg/ccMetric"
+	gocron "github.com/go-co-op/gocron/v2"
 	_ "github.com/mattn/go-sqlite3"
 )
 
 type sqliteStorage struct {
-	name     string
-	filename string
-	handle   *sql.DB
-	lock     sync.Mutex
-	last_idx uint64
-	submit   chan lp.CCMetric
-	queryIn  chan InternalRequest
-	queryOut chan QueryResult
-	done     chan bool
-	wg       *sync.WaitGroup
-	started  bool
+	name      string
+	filename  string
+	handle    *sql.DB
+	lock      sync.Mutex
+	last_idx  uint64
+	submit    chan lp.CCMetric
+	queryIn   chan InternalRequest
+	queryOut  chan QueryResult
+	done      chan bool
+	wg        *sync.WaitGroup
+	max_age   time.Duration
+	scheduler gocron.Scheduler
+	started   bool
 }
 
 type SqliteStorage interface {
@@ -267,6 +270,30 @@ func (cs *sqliteStorage) write(event lp.CCMetric) error {
 }
 
 func (s *sqliteStorage) Start() error {
+	sched, err := gocron.NewScheduler()
+	if err != nil {
+		cclog.ComponentError(s.name, "failed to initialize gocron scheduler")
+		return err
+	}
+	s.scheduler = sched
+
+	s.scheduler.NewJob(
+		gocron.DailyJob(
+			1,
+			gocron.NewAtTimes(
+				gocron.NewAtTime(3, 0, 0),
+			),
+		),
+		gocron.NewTask(
+			func() {
+				before := time.Now().Add(-s.max_age)
+				err := s.Delete(before.Unix())
+				if err != nil {
+					cclog.ComponentError(s.name)
+				}
+			},
+		),
+	)
 	s.wg.Add(1)
 	cclog.ComponentDebug(s.name, "START")
 	go func() {
@@ -323,6 +350,7 @@ func (s *sqliteStorage) Start() error {
 			}
 		}
 	}()
+
 	s.started = true
 	cclog.ComponentDebug(s.name, "STARTED")
 	return nil
@@ -332,6 +360,9 @@ func (s *sqliteStorage) Close() {
 	if s.started {
 		s.done <- true
 		s.done <- true
+		if s.scheduler != nil {
+			s.scheduler.Shutdown()
+		}
 		s.handle.Close()
 	}
 	cclog.ComponentDebug(s.name, "CLOSE")
@@ -361,7 +392,7 @@ func (s *sqliteStorage) Delete(to int64) error {
 	return out.Error
 }
 
-func NewStorage(wg *sync.WaitGroup, basefolder, cluster string) (SqliteStorage, error) {
+func NewStorage(wg *sync.WaitGroup, basefolder, cluster string, max_age time.Duration) (SqliteStorage, error) {
 	s := new(sqliteStorage)
 	s.name = fmt.Sprintf("SqliteStorage(%s)", cluster)
 	s.filename = fmt.Sprintf("%s/%s.db", basefolder, cluster)
@@ -394,6 +425,8 @@ func NewStorage(wg *sync.WaitGroup, basefolder, cluster string) (SqliteStorage, 
 	s.submit = make(chan lp.CCMetric)
 	s.queryIn = make(chan InternalRequest)
 	s.queryOut = make(chan QueryResult)
+	s.max_age = max_age
 	s.started = false
+
 	return s, nil
 }

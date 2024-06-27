@@ -3,6 +3,7 @@ package storage
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	cclog "github.com/ClusterCockpit/cc-metric-collector/pkg/ccLogger"
 	lp "github.com/ClusterCockpit/cc-metric-collector/pkg/ccMetric"
@@ -17,6 +18,7 @@ type storageManger struct {
 	clusters   map[string]storageManagerEntry
 	done       chan bool
 	input      chan lp.CCMetric
+	configfile string
 	wg         *sync.WaitGroup
 }
 
@@ -68,7 +70,7 @@ func (sm *storageManger) SetWriteInput(input chan lp.CCMetric) {
 func (sm *storageManger) Submit(cluster string, event lp.CCMetric) error {
 	if sme, ok := sm.clusters[cluster]; !ok {
 		cclog.ComponentDebug("StorageManager", "New storage for", cluster)
-		s, err := NewStorage(sm.wg, sm.basefolder, cluster)
+		s, err := NewStorage(sm.wg, sm.basefolder, cluster, time.Hour*24*2)
 		if err == nil {
 			sme.store = s
 			sme.store.Start()
@@ -111,6 +113,7 @@ func NewStorageManager(wg *sync.WaitGroup, configFile string) (StorageManager, e
 	sm.wg = wg
 	sm.done = make(chan bool)
 	sm.basefolder = "./archive"
+	sm.configfile = configFile
 	sm.clusters = make(map[string]storageManagerEntry)
 	return sm, nil
 }

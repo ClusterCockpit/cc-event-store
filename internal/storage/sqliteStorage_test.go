@@ -25,7 +25,7 @@ func generate_metrics(count int) ([]lp.CCMetric, error) {
 
 func TestNewStore(t *testing.T) {
 	var wg sync.WaitGroup
-	s, err := NewStorage(&wg, ".", "testing")
+	s, err := NewStorage(&wg, ".", "testing", time.Hour*24)
 	if err != nil {
 		t.Error(err.Error())
 	}
@@ -37,7 +37,7 @@ func TestNewStore(t *testing.T) {
 
 func TestStartStore(t *testing.T) {
 	var wg sync.WaitGroup
-	s, err := NewStorage(&wg, ".", "testing")
+	s, err := NewStorage(&wg, ".", "testing", time.Hour*24)
 	if err != nil {
 		t.Error(err.Error())
 	}
@@ -51,7 +51,7 @@ func TestStartStore(t *testing.T) {
 
 func TestCloseWithoutStart(t *testing.T) {
 	var wg sync.WaitGroup
-	s, err := NewStorage(&wg, ".", "testing")
+	s, err := NewStorage(&wg, ".", "testing", time.Hour*24)
 	if err != nil {
 		t.Error(err.Error())
 	}
@@ -64,7 +64,7 @@ func TestCloseWithoutStart(t *testing.T) {
 
 func TestAddStore(t *testing.T) {
 	var wg sync.WaitGroup
-	s, err := NewStorage(&wg, ".", "testing")
+	s, err := NewStorage(&wg, ".", "testing", time.Hour*24)
 	if err != nil {
 		t.Error(err.Error())
 	}
@@ -86,7 +86,7 @@ func TestAddStore(t *testing.T) {
 
 func TestQueryStore(t *testing.T) {
 	var wg sync.WaitGroup
-	s, err := NewStorage(&wg, ".", "testing")
+	s, err := NewStorage(&wg, ".", "testing", time.Hour*24)
 	if err != nil {
 		t.Error(err.Error())
 	}
@@ -138,7 +138,7 @@ func TestDeleteStore(t *testing.T) {
 	before := 5
 	after := 5
 	var wg sync.WaitGroup
-	s, err := NewStorage(&wg, ".", "testing")
+	s, err := NewStorage(&wg, ".", "testing", time.Hour*24)
 	if err != nil {
 		t.Error(err.Error())
 	}
