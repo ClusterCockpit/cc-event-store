@@ -12,7 +12,7 @@
         "open_flag=X"
     ],
     "username" : "myuser",
-    "password" : "mypass
+    "password" : "mypass"
 }
 ```
 
