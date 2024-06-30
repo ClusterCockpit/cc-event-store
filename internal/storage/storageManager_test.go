@@ -3,6 +3,7 @@ package storage
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -13,15 +14,15 @@ import (
 func TestNewManager(t *testing.T) {
 	var wg sync.WaitGroup
 
-	err := Write_testconfig("testconfig.json")
+	err := Write_testconfig(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
 		t.Error(err.Error())
 	}
 	t.Cleanup(func() {
-		os.Remove("./testconfig.json")
+		os.Remove(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	})
 
-	_, err = NewStorageManager(&wg, "testconfig.json")
+	_, err = NewStorageManager(&wg, fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
 		t.Error(err.Error())
 	}
@@ -30,15 +31,15 @@ func TestNewManager(t *testing.T) {
 func TestCloseManager(t *testing.T) {
 	var wg sync.WaitGroup
 
-	err := Write_testconfig("testconfig.json")
+	err := Write_testconfig(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
 		t.Error(err.Error())
 	}
 	t.Cleanup(func() {
-		os.Remove("./testconfig.json")
+		os.Remove(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	})
 
-	sm, err := NewStorageManager(&wg, "testconfig.json")
+	sm, err := NewStorageManager(&wg, fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
 		t.Error(err.Error())
 	}
@@ -48,21 +49,21 @@ func TestCloseManager(t *testing.T) {
 func TestWriteManager(t *testing.T) {
 	var wg sync.WaitGroup
 
-	err := Write_testconfig("testconfig.json")
+	err := Write_testconfig(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
 		t.Error(err.Error())
 	}
 	t.Cleanup(func() {
-		os.Remove("./testconfig.json")
+		os.Remove(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	})
-	sm, err := NewStorageManager(&wg, "testconfig.json")
+	sm, err := NewStorageManager(&wg, fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
 		t.Error(err.Error())
 	}
 	defer sm.Close()
 	t.Cleanup(func() {
 		sm.Close()
-		os.Remove("./testconfig.json")
+		os.Remove(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 		os.Remove("./testconfig.db")
 	})
 
@@ -94,18 +95,24 @@ func gen_parallel_for_manager(x StorageManager, threads int) func(b *testing.B) 
 func BenchmarkWriteManagerParallel(b *testing.B) {
 	var wg sync.WaitGroup
 
-	err := Write_testconfig("testconfig.json")
+	err := Write_testconfig(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
 		b.Error(err.Error())
 	}
-	sm, err := NewStorageManager(&wg, "testconfig.json")
+	sm, err := NewStorageManager(&wg, fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
 		b.Error(err.Error())
 	}
 	b.Cleanup(func() {
 		sm.Close()
-		os.Remove("./testconfig.json")
-		os.Remove("./testconfig.db")
+		os.Remove(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
+		dbfiles, err := filepath.Glob("./testing.db*")
+		if err != nil {
+			b.Error(err.Error())
+		}
+		for _, f := range dbfiles {
+			os.Remove(f)
+		}
 	})
 
 	mlist, err := Generate_metrics(4)
@@ -124,18 +131,25 @@ func BenchmarkWriteManagerParallel(b *testing.B) {
 func TestStartManager(t *testing.T) {
 	var wg sync.WaitGroup
 
-	err := Write_testconfig("testconfig.json")
+	err := Write_testconfig(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
 		t.Error(err.Error())
 	}
 
-	sm, err := NewStorageManager(&wg, "testconfig.json")
+	sm, err := NewStorageManager(&wg, fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
 		t.Error(err.Error())
 	}
 	t.Cleanup(func() {
 		sm.Close()
-		os.Remove("./testconfig.json")
+		os.Remove(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
+		dbfiles, err := filepath.Glob("./testing.db*")
+		if err != nil {
+			t.Error(err.Error())
+		}
+		for _, f := range dbfiles {
+			os.Remove(f)
+		}
 	})
 	sm.Start()
 }
@@ -144,18 +158,18 @@ func TestWriteChanManager(t *testing.T) {
 	var wg sync.WaitGroup
 	ch := make(chan lp.CCMetric)
 
-	err := Write_testconfig("testconfig.json")
+	err := Write_testconfig(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
 		t.Error(err.Error())
 	}
 
-	sm, err := NewStorageManager(&wg, "testconfig.json")
+	sm, err := NewStorageManager(&wg, fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
 		t.Error(err.Error())
 	}
 	t.Cleanup(func() {
 		sm.Close()
-		os.Remove("./testconfig.json")
+		os.Remove(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	})
 	sm.SetInput(ch)
 	sm.Start()

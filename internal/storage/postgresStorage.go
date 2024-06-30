@@ -14,8 +14,9 @@ import (
 
 type postgresStorageConfig struct {
 	Type              string   `json:"type"`
-	PostgresFlags     []string `json:"postgres_flags,omitempty"`
+	Flags             []string `json:"flags,omitempty"`
 	Server            string   `json:"server,omitempty"`
+	Port              int      `json:"port,omitempty"`
 	Path              string   `json:"database_path"`
 	StoreLogs         bool     `json:"store_logs,omitempty"`
 	Retention         string   `json:"retention_time"`
@@ -41,6 +42,7 @@ func (s *postgresStorage) Init(wg *sync.WaitGroup, configfile string) error {
 	s.started = false
 	s.last_rowids = make(map[string]sqlStorageTableID)
 	s.config.Server = "localhost"
+	s.config.Port = 5432
 	s.config.ConnectionTimeout = 1
 	s.json_access = "->>"
 
@@ -65,7 +67,7 @@ func (s *postgresStorage) Init(wg *sync.WaitGroup, configfile string) error {
 	}
 	s.retention = t
 
-	s.config.PostgresFlags = append(s.config.PostgresFlags, fmt.Sprintf("connect_timeout=%d", s.config.ConnectionTimeout))
+	s.config.Flags = append(s.config.Flags, fmt.Sprintf("connect_timeout=%d", s.config.ConnectionTimeout))
 	//pqgotest:password@localhost/pqgotest?sslmode=verify-full"
 	fname_with_opts := "postgres://"
 	if len(s.config.Username) > 0 {
@@ -76,9 +78,9 @@ func (s *postgresStorage) Init(wg *sync.WaitGroup, configfile string) error {
 		fname_with_opts += "@"
 	}
 
-	fname_with_opts += fmt.Sprintf("%s/%s", s.config.Server, s.config.Path)
-	if len(s.config.PostgresFlags) > 0 {
-		for i, f := range s.config.PostgresFlags {
+	fname_with_opts += fmt.Sprintf("%s:%d/%s", s.config.Server, s.config.Port, s.config.Path)
+	if len(s.config.Flags) > 0 {
+		for i, f := range s.config.Flags {
 			if i == 0 {
 				fname_with_opts += fmt.Sprintf("?%s", f)
 			} else {

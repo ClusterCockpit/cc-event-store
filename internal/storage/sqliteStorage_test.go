@@ -13,6 +13,11 @@ import (
 	lp "github.com/ClusterCockpit/cc-metric-collector/pkg/ccMetric"
 )
 
+const TEST_DB_NAME = `testing.db`
+const TEST_DB_PATH = `.`
+const TEST_CONFIG_PATH = `.`
+const TEST_CONFIG_NAME = `testing.json`
+
 func Write_testconfig(filename string) error {
 	f, err := os.Create(filename)
 	if err != nil {
@@ -22,7 +27,7 @@ func Write_testconfig(filename string) error {
 
 	config := sqliteStorageConfig{
 		Type:      "sql",
-		Path:      "./testing.db",
+		Path:      fmt.Sprintf("%s/%s", TEST_DB_PATH, TEST_DB_NAME),
 		Retention: "48h",
 		Flags: []string{
 			"_journal=WAL",
@@ -56,19 +61,19 @@ func TestNew(t *testing.T) {
 	var wg sync.WaitGroup
 	x := new(sqliteStorage)
 
-	err := Write_testconfig("testconfig.json")
+	err := Write_testconfig(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
 		t.Error(err.Error())
 	}
 	cclog.SetDebug()
-	err = x.Init(&wg, "testconfig.json")
+	err = x.Init(&wg, fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
 		t.Error(err.Error())
 	}
 	t.Cleanup(func() {
 		x.Close()
-		os.Remove("./testconfig.json")
-		dbfiles, err := filepath.Glob("./testing.db*")
+		os.Remove(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
+		dbfiles, err := filepath.Glob(fmt.Sprintf("%s/%s", TEST_DB_PATH, TEST_DB_NAME))
 		if err != nil {
 			t.Error(err.Error())
 		}
@@ -82,19 +87,19 @@ func TestWrite(t *testing.T) {
 	var wg sync.WaitGroup
 	x := new(sqliteStorage)
 
-	err := Write_testconfig("testconfig.json")
+	err := Write_testconfig(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
 		t.Error(err.Error())
 	}
 	cclog.SetDebug()
-	err = x.Init(&wg, "testconfig.json")
+	err = x.Init(&wg, fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
 		t.Error(err.Error())
 	}
 	t.Cleanup(func() {
 		x.Close()
-		os.Remove("./testconfig.json")
-		dbfiles, err := filepath.Glob("./testing.db*")
+		os.Remove(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
+		dbfiles, err := filepath.Glob(fmt.Sprintf("%s/%s", TEST_DB_PATH, TEST_DB_NAME))
 		if err != nil {
 			t.Error(err.Error())
 		}
@@ -116,18 +121,18 @@ func BenchmarkWrite(b *testing.B) {
 	var wg sync.WaitGroup
 	x := new(sqliteStorage)
 
-	err := Write_testconfig("testconfig.json")
+	err := Write_testconfig(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
 		b.Error(err.Error())
 	}
-	err = x.Init(&wg, "testconfig.json")
+	err = x.Init(&wg, fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
 		b.Error(err.Error())
 	}
 	b.Cleanup(func() {
 		x.Close()
-		os.Remove("./testconfig.json")
-		dbfiles, err := filepath.Glob("./testing.db*")
+		os.Remove(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
+		dbfiles, err := filepath.Glob(fmt.Sprintf("%s/%s", TEST_DB_PATH, TEST_DB_NAME))
 		if err != nil {
 			b.Error(err.Error())
 		}
@@ -168,18 +173,18 @@ func BenchmarkWriteParallel(b *testing.B) {
 	var wg sync.WaitGroup
 	x := new(sqliteStorage)
 
-	err := Write_testconfig("testconfig.json")
+	err := Write_testconfig(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
 		b.Error(err.Error())
 	}
-	err = x.Init(&wg, "testconfig.json")
+	err = x.Init(&wg, fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
 		b.Error(err.Error())
 	}
 	b.Cleanup(func() {
 		x.Close()
-		os.Remove("./testconfig.json")
-		dbfiles, err := filepath.Glob("./testing.db*")
+		os.Remove(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
+		dbfiles, err := filepath.Glob(fmt.Sprintf("%s/%s", TEST_DB_PATH, TEST_DB_NAME))
 		if err != nil {
 			b.Error(err.Error())
 		}
@@ -197,19 +202,19 @@ func TestQuery(t *testing.T) {
 	var wg sync.WaitGroup
 	x := new(sqliteStorage)
 
-	err := Write_testconfig("testconfig.json")
+	err := Write_testconfig(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
 		t.Error(err.Error())
 	}
 	cclog.SetDebug()
-	err = x.Init(&wg, "testconfig.json")
+	err = x.Init(&wg, fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
 		t.Error(err.Error())
 	}
 	t.Cleanup(func() {
 		x.Close()
-		os.Remove("./testconfig.json")
-		dbfiles, err := filepath.Glob("./testing.db*")
+		os.Remove(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
+		dbfiles, err := filepath.Glob(fmt.Sprintf("%s/%s", TEST_DB_PATH, TEST_DB_NAME))
 		if err != nil {
 			t.Error(err.Error())
 		}
@@ -251,19 +256,19 @@ func TestQueryConditions(t *testing.T) {
 	var wg sync.WaitGroup
 	x := new(sqliteStorage)
 
-	err := Write_testconfig("testconfig.json")
+	err := Write_testconfig(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
 		t.Error(err.Error())
 	}
 	cclog.SetDebug()
-	err = x.Init(&wg, "testconfig.json")
+	err = x.Init(&wg, fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
 		t.Error(err.Error())
 	}
 	t.Cleanup(func() {
 		x.Close()
-		os.Remove("./testconfig.json")
-		dbfiles, err := filepath.Glob("./testing.db*")
+		os.Remove(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
+		dbfiles, err := filepath.Glob(fmt.Sprintf("%s/%s", TEST_DB_PATH, TEST_DB_NAME))
 		if err != nil {
 			t.Error(err.Error())
 		}
@@ -329,19 +334,19 @@ func TestWriteChan(t *testing.T) {
 	x := new(sqliteStorage)
 	ch := make(chan lp.CCMetric)
 
-	err := Write_testconfig("testconfig.json")
+	err := Write_testconfig(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
 		t.Error(err.Error())
 	}
 	cclog.SetDebug()
-	err = x.Init(&wg, "testconfig.json")
+	err = x.Init(&wg, fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
 		t.Error(err.Error())
 	}
 	t.Cleanup(func() {
 		x.Close()
-		os.Remove("./testconfig.json")
-		dbfiles, err := filepath.Glob("./testing.db*")
+		os.Remove(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
+		dbfiles, err := filepath.Glob(fmt.Sprintf("%s/%s", TEST_DB_PATH, TEST_DB_NAME))
 		if err != nil {
 			t.Error(err.Error())
 		}
@@ -366,12 +371,12 @@ func TestWriteChanQuery(t *testing.T) {
 	x := new(sqliteStorage)
 	ch := make(chan lp.CCMetric)
 
-	err := Write_testconfig("testconfig.json")
+	err := Write_testconfig(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
 		t.Error(err.Error())
 	}
 	cclog.SetDebug()
-	err = x.Init(&wg, "testconfig.json")
+	err = x.Init(&wg, fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
 		t.Error(err.Error())
 	}
@@ -379,8 +384,8 @@ func TestWriteChanQuery(t *testing.T) {
 	x.Start()
 	t.Cleanup(func() {
 		x.Close()
-		os.Remove("./testconfig.json")
-		dbfiles, err := filepath.Glob("./testing.db*")
+		os.Remove(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
+		dbfiles, err := filepath.Glob(fmt.Sprintf("%s/%s", TEST_DB_PATH, TEST_DB_NAME))
 		if err != nil {
 			t.Error(err.Error())
 		}
