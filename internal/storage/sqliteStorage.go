@@ -38,6 +38,7 @@ func (s *sqliteStorage) Init(wg *sync.WaitGroup, configfile string) error {
 	s.name = "SQLiteStorage"
 	s.started = false
 	s.last_rowids = make(map[string]sqlStorageTableID)
+	s.json_access = "->>"
 
 	configFile, err := os.Open(configfile)
 	if err != nil {
