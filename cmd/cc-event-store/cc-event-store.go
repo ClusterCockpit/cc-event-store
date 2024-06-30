@@ -12,6 +12,7 @@ import (
 	"github.com/ClusterCockpit/cc-event-store/internal/storage"
 	cclog "github.com/ClusterCockpit/cc-metric-collector/pkg/ccLogger"
 	lp "github.com/ClusterCockpit/cc-metric-collector/pkg/ccMetric"
+
 	"github.com/ClusterCockpit/cc-metric-collector/receivers"
 )
 
@@ -135,7 +136,7 @@ func mainFunc() int {
 	rcfg.receiveManager = ReceiveManager
 	rcfg.router.SetInput(ReceiveToRouterChannel)
 	rcfg.router.SetOutput(RouterToStorageChannel)
-	rcfg.storageEngine.SetWriteInput(RouterToStorageChannel)
+	rcfg.storageEngine.SetInput(RouterToStorageChannel)
 
 	// Create shutdown handler
 	shutdownSignal := make(chan os.Signal, 1)

@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
-	"strconv"
 	"time"
 
+	"github.com/ClusterCockpit/cc-event-store/internal/storage"
 	cclog "github.com/ClusterCockpit/cc-metric-collector/pkg/ccLogger"
 	lp "github.com/ClusterCockpit/cc-metric-collector/pkg/ccMetric"
 	influx "github.com/influxdata/line-protocol/v2/lineprotocol"
@@ -98,16 +98,20 @@ func (a *api) HandleQuery(w http.ResponseWriter, r *http.Request) {
 		Results: make([][]ApiMetricData, 0, len(req.Queries)),
 	}
 
-	do_query := func(cluster, event, hostname string, from, to int64, conditions []string) (ApiMetricData, error) {
+	do_query := func(cluster, event, hostname string, from, to int64, conditions []storage.QueryCondition) (ApiMetricData, error) {
 		res, err := a.store.Query(cluster, event, hostname, from, to, conditions)
 		if err != nil {
 			err = fmt.Errorf("failed to parse API request: %v", err.Error())
 			return ApiMetricData{}, err
 		}
-		d := ApiMetricData{
-			Data: make([]ApiMetricDataEntry, 0, len(res)),
+		if res.Error != nil {
+			err = fmt.Errorf("failed to parse API request: %v", res.Error.Error())
+			return ApiMetricData{}, err
 		}
-		for _, r := range res {
+		d := ApiMetricData{
+			Data: make([]ApiMetricDataEntry, 0, len(res.Results)),
+		}
+		for _, r := range res.Results {
 			d.Data = append(d.Data, ApiMetricDataEntry{
 				Event: r.Event,
 				Time:  r.Timestamp,
@@ -119,19 +123,34 @@ func (a *api) HandleQuery(w http.ResponseWriter, r *http.Request) {
 	for qid, q := range req.Queries {
 		for _, t := range q.TypeIds {
 
-			conditions := make([]string, 0)
-			conditions = append(conditions, fmt.Sprintf("type-id = %s", t))
+			conditions := make([]storage.QueryCondition, 0)
+			conditions = append(conditions, storage.QueryCondition{
+				Pred:      "type-id",
+				Operation: "==",
+				Args:      []interface{}{t},
+			})
 			if len(*q.Type) > 0 {
-				conditions = append(conditions, fmt.Sprintf("type = %s", *q.Type))
+				conditions = append(conditions, storage.QueryCondition{
+					Pred:      "type",
+					Operation: "==",
+					Args:      []interface{}{*q.Type},
+				})
 			}
 			if len(q.SubTypeIds) > 0 {
 				subconditions := slices.Clone(conditions)
 				if len(*q.SubType) > 0 {
-					subconditions = append(subconditions, fmt.Sprintf("stype = %s", *q.SubType))
+					subconditions = append(conditions, storage.QueryCondition{
+						Pred:      "stype",
+						Operation: "==",
+						Args:      []interface{}{*q.SubType},
+					})
 				}
 				for _, st := range q.SubTypeIds {
-					subconditions = append(subconditions, fmt.Sprintf("stype-id = %s", st))
-
+					subconditions = append(conditions, storage.QueryCondition{
+						Pred:      "stype-id",
+						Operation: "==",
+						Args:      []interface{}{st},
+					})
 				}
 				d, err := do_query(req.Cluster, q.Event, q.Hostname, req.From, req.To, subconditions)
 				if err != nil {
@@ -245,7 +264,7 @@ func (a *api) HandleWrite(w http.ResponseWriter, r *http.Request) {
 			t,
 		)
 
-		a.store.Submit(cluster, y)
+		a.store.Write(y)
 	}
 	err := d.Err()
 	if err != nil {
@@ -272,32 +291,32 @@ func (a *api) HandleWrite(w http.ResponseWriter, r *http.Request) {
 // @failure     500            {object} api.ErrorResponse       "Internal Server Error"
 // @security    ApiKeyAuth
 // @router      /free/ [post]
-func (a *api) HandleDelete(w http.ResponseWriter, r *http.Request) {
-	cclog.ComponentDebug("REST", "HandleDelete")
-	cluster := r.URL.Query().Get("cluster")
-	if cluster == "" {
-		handleError(errors.New("query parameter cluster is required"), http.StatusBadRequest, w)
-		return
-	}
-	to_string := r.URL.Query().Get("to")
-	if cluster == "" {
-		handleError(errors.New("query parameter to is required"), http.StatusBadRequest, w)
-		return
-	}
+// func (a *api) HandleDelete(w http.ResponseWriter, r *http.Request) {
+// 	cclog.ComponentDebug("REST", "HandleDelete")
+// 	cluster := r.URL.Query().Get("cluster")
+// 	if cluster == "" {
+// 		handleError(errors.New("query parameter cluster is required"), http.StatusBadRequest, w)
+// 		return
+// 	}
+// 	to_string := r.URL.Query().Get("to")
+// 	if cluster == "" {
+// 		handleError(errors.New("query parameter to is required"), http.StatusBadRequest, w)
+// 		return
+// 	}
 
-	to, err := strconv.ParseInt(to_string, 10, 64)
-	if err != nil {
-		msg := "HandleDelete: Failed to parse " + to_string + ": " + err.Error()
-		cclog.ComponentError("REST", msg)
-		handleError(err, http.StatusInternalServerError, w)
-	}
+// 	to, err := strconv.ParseInt(to_string, 10, 64)
+// 	if err != nil {
+// 		msg := "HandleDelete: Failed to parse " + to_string + ": " + err.Error()
+// 		cclog.ComponentError("REST", msg)
+// 		handleError(err, http.StatusInternalServerError, w)
+// 	}
 
-	err = a.store.Delete(cluster, to)
-	if err != nil {
-		msg := fmt.Sprintf("HandleDelete: Failed to delete events for cluster %s before %d: %v", cluster, to, err.Error())
-		cclog.ComponentError("REST", msg)
-		handleError(err, http.StatusInternalServerError, w)
-	}
+// 	err = a.store.Delete(cluster, to)
+// 	if err != nil {
+// 		msg := fmt.Sprintf("HandleDelete: Failed to delete events for cluster %s before %d: %v", cluster, to, err.Error())
+// 		cclog.ComponentError("REST", msg)
+// 		handleError(err, http.StatusInternalServerError, w)
+// 	}
 
-	w.WriteHeader(http.StatusOK)
-}
+// 	w.WriteHeader(http.StatusOK)
+// }

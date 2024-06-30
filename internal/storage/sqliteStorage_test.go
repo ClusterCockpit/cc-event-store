@@ -1,8 +1,10 @@
 package storage
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -11,10 +13,37 @@ import (
 	lp "github.com/ClusterCockpit/cc-metric-collector/pkg/ccMetric"
 )
 
-func generate_metrics(count int) ([]lp.CCMetric, error) {
+func Write_testconfig(filename string) error {
+	f, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	config := sqliteStorageConfig{
+		Type:      "sql",
+		Path:      "./testing.db",
+		Retention: "48h",
+		Flags: []string{
+			"_journal=WAL",
+			"_timeout=5000",
+			"_fk=true",
+		},
+	}
+
+	b, err := json.MarshalIndent(config, "", " ")
+	if err != nil {
+		return err
+	}
+
+	f.Write(b)
+	return nil
+}
+
+func Generate_metrics(count int) ([]lp.CCMetric, error) {
 	out := make([]lp.CCMetric, 0, count)
 	for i := 0; i < count; i++ {
-		y, err := lp.New("test", map[string]string{"hostname": "myhost", "type": "node"}, map[string]string{"unit": "kHz"}, map[string]interface{}{"event": fmt.Sprintf("event%d", i)}, time.Now())
+		y, err := lp.New("test", map[string]string{"hostname": "myhost", "type": "node", "cluster": "testcluster"}, map[string]string{"unit": "kHz"}, map[string]interface{}{"event": fmt.Sprintf("event%d", i)}, time.Now())
 		if err != nil {
 			return nil, err
 		}
@@ -23,169 +52,368 @@ func generate_metrics(count int) ([]lp.CCMetric, error) {
 	return out, nil
 }
 
-func TestNewStore(t *testing.T) {
+func TestNew(t *testing.T) {
 	var wg sync.WaitGroup
-	s, err := NewStorage(&wg, ".", "testing", time.Hour*24)
+	x := new(sqliteStorage)
+
+	err := Write_testconfig("testconfig.json")
+	if err != nil {
+		t.Error(err.Error())
+	}
+	cclog.SetDebug()
+	err = x.Init(&wg, "testconfig.json")
 	if err != nil {
 		t.Error(err.Error())
 	}
 	t.Cleanup(func() {
-		s.Close()
-		os.Remove("./testing.db")
+		x.Close()
+		os.Remove("./testconfig.json")
+		dbfiles, err := filepath.Glob("./testing.db*")
+		if err != nil {
+			t.Error(err.Error())
+		}
+		for _, f := range dbfiles {
+			os.Remove(f)
+		}
 	})
 }
 
-func TestStartStore(t *testing.T) {
+func TestWrite(t *testing.T) {
 	var wg sync.WaitGroup
-	s, err := NewStorage(&wg, ".", "testing", time.Hour*24)
+	x := new(sqliteStorage)
+
+	err := Write_testconfig("testconfig.json")
+	if err != nil {
+		t.Error(err.Error())
+	}
+	cclog.SetDebug()
+	err = x.Init(&wg, "testconfig.json")
 	if err != nil {
 		t.Error(err.Error())
 	}
 	t.Cleanup(func() {
-		s.Close()
-		os.Remove("./testing.db")
+		x.Close()
+		os.Remove("./testconfig.json")
+		dbfiles, err := filepath.Glob("./testing.db*")
+		if err != nil {
+			t.Error(err.Error())
+		}
+		for _, f := range dbfiles {
+			os.Remove(f)
+		}
 	})
-	s.Start()
 
-}
-
-func TestCloseWithoutStart(t *testing.T) {
-	var wg sync.WaitGroup
-	s, err := NewStorage(&wg, ".", "testing", time.Hour*24)
-	if err != nil {
-		t.Error(err.Error())
-	}
-	t.Cleanup(func() {
-		os.Remove("./testing.db")
-	})
-	s.Close()
-
-}
-
-func TestAddStore(t *testing.T) {
-	var wg sync.WaitGroup
-	s, err := NewStorage(&wg, ".", "testing", time.Hour*24)
-	if err != nil {
-		t.Error(err.Error())
-	}
-	t.Cleanup(func() {
-		s.Close()
-		os.Remove("./testing.db")
-	})
-	s.Start()
-
-	mlist, err := generate_metrics(10)
+	mlist, err := Generate_metrics(4)
 	if err != nil {
 		t.Error(err.Error())
 	}
 	for _, m := range mlist {
-		s.Submit(m)
+		x.Write(m)
 	}
-
 }
 
-func TestQueryStore(t *testing.T) {
+func BenchmarkWrite(b *testing.B) {
 	var wg sync.WaitGroup
-	s, err := NewStorage(&wg, ".", "testing", time.Hour*24)
+	x := new(sqliteStorage)
+
+	err := Write_testconfig("testconfig.json")
+	if err != nil {
+		b.Error(err.Error())
+	}
+	err = x.Init(&wg, "testconfig.json")
+	if err != nil {
+		b.Error(err.Error())
+	}
+	b.Cleanup(func() {
+		x.Close()
+		os.Remove("./testconfig.json")
+		dbfiles, err := filepath.Glob("./testing.db*")
+		if err != nil {
+			b.Error(err.Error())
+		}
+		for _, f := range dbfiles {
+			os.Remove(f)
+		}
+	})
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			for i := 0; i < b.N; i++ {
+				y, err := lp.New("test", map[string]string{"hostname": "myhost", "type": "node", "cluster": "testcluster"}, map[string]string{"unit": "kHz"}, map[string]interface{}{"event": fmt.Sprintf("event%d", i)}, time.Now())
+				if err == nil {
+					x.Write(y)
+				}
+			}
+		}
+	})
+}
+
+func gen_parallel(x SqlStorage, threads int) func(b *testing.B) {
+	return func(b *testing.B) {
+		b.SetParallelism(threads)
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				for i := 0; i < b.N; i++ {
+					y, err := lp.New("test", map[string]string{"hostname": "myhost", "type": "node", "cluster": "testcluster"}, map[string]string{"unit": "kHz"}, map[string]interface{}{"event": fmt.Sprintf("event%d", i)}, time.Now())
+					if err == nil {
+						x.Write(y)
+					}
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkWriteParallel(b *testing.B) {
+	var wg sync.WaitGroup
+	x := new(sqliteStorage)
+
+	err := Write_testconfig("testconfig.json")
+	if err != nil {
+		b.Error(err.Error())
+	}
+	err = x.Init(&wg, "testconfig.json")
+	if err != nil {
+		b.Error(err.Error())
+	}
+	b.Cleanup(func() {
+		x.Close()
+		os.Remove("./testconfig.json")
+		dbfiles, err := filepath.Glob("./testing.db*")
+		if err != nil {
+			b.Error(err.Error())
+		}
+		for _, f := range dbfiles {
+			os.Remove(f)
+		}
+	})
+
+	for i := 1; i < 16; i++ {
+		b.Run(fmt.Sprintf("threads=%d", i), gen_parallel(x, i))
+	}
+}
+
+func TestQuery(t *testing.T) {
+	var wg sync.WaitGroup
+	x := new(sqliteStorage)
+
+	err := Write_testconfig("testconfig.json")
+	if err != nil {
+		t.Error(err.Error())
+	}
+	cclog.SetDebug()
+	err = x.Init(&wg, "testconfig.json")
 	if err != nil {
 		t.Error(err.Error())
 	}
 	t.Cleanup(func() {
-		s.Close()
-		os.Remove("./testing.db")
+		x.Close()
+		os.Remove("./testconfig.json")
+		dbfiles, err := filepath.Glob("./testing.db*")
+		if err != nil {
+			t.Error(err.Error())
+		}
+		for _, f := range dbfiles {
+			os.Remove(f)
+		}
 	})
-	s.Start()
-	t_before := time.Now()
 
-	mlist, err := generate_metrics(10)
+	mlist, err := Generate_metrics(8)
+	if err != nil {
+		t.Error(err.Error())
+	}
+	for _, m := range mlist {
+		x.Write(m)
+	}
+
+	request := QueryRequest{
+		Event:     mlist[0].Name(),
+		To:        time.Now().Unix(),
+		From:      time.Now().Unix() - 10,
+		Hostname:  "myhost",
+		Cluster:   "testcluster",
+		QueryType: QueryTypeEvent,
+	}
+
+	result, err := x.Query(request)
+	if err != nil {
+		t.Error()
+	}
+	if len(result.Results) == 0 {
+		t.Errorf("no results")
+	}
+	for _, e := range result.Results {
+		t.Logf("%d : %s", e.Timestamp, e.Event)
+	}
+}
+
+func TestQueryConditions(t *testing.T) {
+	var wg sync.WaitGroup
+	x := new(sqliteStorage)
+
+	err := Write_testconfig("testconfig.json")
+	if err != nil {
+		t.Error(err.Error())
+	}
+	cclog.SetDebug()
+	err = x.Init(&wg, "testconfig.json")
+	if err != nil {
+		t.Error(err.Error())
+	}
+	t.Cleanup(func() {
+		x.Close()
+		os.Remove("./testconfig.json")
+		dbfiles, err := filepath.Glob("./testing.db*")
+		if err != nil {
+			t.Error(err.Error())
+		}
+		for _, f := range dbfiles {
+			os.Remove(f)
+		}
+	})
+
+	mlist, err := Generate_metrics(8)
 	if err != nil {
 		t.Error(err.Error())
 	}
 	for i, m := range mlist {
-		m.AddTag("stype", "filesystem")
 		if i%2 == 0 {
-			m.AddTag("stype-id", "/home")
-		} else {
-			m.AddTag("stype-id", "/mnt")
+			m.AddTag("type", "socket")
+			m.AddTag("type-id", "1")
 		}
 	}
-	cclog.SetDebug()
 	for _, m := range mlist {
-		s.Submit(m)
+		x.Write(m)
 	}
 
-	req := QueryRequest{
-		Event:    "test",
-		From:     t_before.Unix(),
-		To:       time.Now().Unix(),
-		Hostname: "myhost",
-		Conditions: []string{
-			"stype-id = \"/home\"",
+	request := QueryRequest{
+		Event:     mlist[0].Name(),
+		To:        time.Now().Unix(),
+		From:      time.Now().Unix() - 10,
+		Hostname:  "myhost",
+		Cluster:   "testcluster",
+		QueryType: QueryTypeEvent,
+		Conditions: []QueryCondition{
+			{
+				Pred:      "type",
+				Operation: "!=",
+				Args:      []interface{}{"node"},
+			},
+			{
+				Pred:      "type",
+				Operation: "==",
+				Args:      []interface{}{"socket"},
+			},
+			{
+				Pred:      "type-id",
+				Operation: "==",
+				Args:      []interface{}{"0", "1"},
+			},
 		},
 	}
-	cclog.Debug("Start Query")
-	events, err := s.Query(req)
+
+	result, err := x.Query(request)
+	if err != nil {
+		t.Error()
+	}
+	if len(result.Results) == 0 {
+		t.Errorf("no results")
+	}
+	for _, e := range result.Results {
+		t.Logf("%d : %s", e.Timestamp, e.Event)
+	}
+}
+
+func TestWriteChan(t *testing.T) {
+	var wg sync.WaitGroup
+	x := new(sqliteStorage)
+	ch := make(chan lp.CCMetric)
+
+	err := Write_testconfig("testconfig.json")
 	if err != nil {
 		t.Error(err.Error())
 	}
-	for _, e := range events {
-		t.Log(e)
-	}
-
-}
-
-func TestDeleteStore(t *testing.T) {
-	before := 5
-	after := 5
-	var wg sync.WaitGroup
-	s, err := NewStorage(&wg, ".", "testing", time.Hour*24)
+	cclog.SetDebug()
+	err = x.Init(&wg, "testconfig.json")
 	if err != nil {
 		t.Error(err.Error())
 	}
 	t.Cleanup(func() {
-		s.Close()
-		os.Remove("./testing.db")
+		x.Close()
+		os.Remove("./testconfig.json")
+		dbfiles, err := filepath.Glob("./testing.db*")
+		if err != nil {
+			t.Error(err.Error())
+		}
+		for _, f := range dbfiles {
+			os.Remove(f)
+		}
 	})
-	s.Start()
-	t_before := time.Now()
-	mlist, err := generate_metrics(before)
+	x.SetInput(ch)
+	x.Start()
+
+	mlist, err := Generate_metrics(4)
 	if err != nil {
 		t.Error(err.Error())
 	}
 	for _, m := range mlist {
-		s.Submit(m)
+		ch <- m
 	}
-	middle := time.Now()
-	time.Sleep(2 * time.Second)
-	mlist, err = generate_metrics(after)
+}
+
+func TestWriteChanQuery(t *testing.T) {
+	var wg sync.WaitGroup
+	x := new(sqliteStorage)
+	ch := make(chan lp.CCMetric)
+
+	err := Write_testconfig("testconfig.json")
 	if err != nil {
 		t.Error(err.Error())
-	}
-	for _, m := range mlist {
-		s.Submit(m)
 	}
 	cclog.SetDebug()
-	err = s.Delete(middle.Unix())
+	err = x.Init(&wg, "testconfig.json")
 	if err != nil {
 		t.Error(err.Error())
 	}
-
-	req := QueryRequest{
-		Event:    "test",
-		From:     t_before.Unix(),
-		To:       time.Now().Unix(),
-		Hostname: "myhost",
-	}
-	cclog.Debug("Start Query")
-	events, err := s.Query(req)
-	if err != nil {
-		t.Error(err.Error())
-	}
-	if len(events) != after {
-		for _, e := range events {
-			t.Log(e)
+	x.SetInput(ch)
+	x.Start()
+	t.Cleanup(func() {
+		x.Close()
+		os.Remove("./testconfig.json")
+		dbfiles, err := filepath.Glob("./testing.db*")
+		if err != nil {
+			t.Error(err.Error())
 		}
-		t.Errorf("delete failed, there should only be %d events in the DB", after)
+		for _, f := range dbfiles {
+			os.Remove(f)
+		}
+	})
 
+	mlist, err := Generate_metrics(8)
+	if err != nil {
+		t.Error(err.Error())
+	}
+	for _, m := range mlist {
+		ch <- m
+	}
+
+	request := QueryRequest{
+		Event:     mlist[0].Name(),
+		To:        time.Now().Unix(),
+		From:      time.Now().Unix() - 10,
+		Hostname:  "myhost",
+		Cluster:   "testcluster",
+		QueryType: QueryTypeEvent,
+	}
+
+	result, err := x.Query(request)
+	if err != nil {
+		t.Error()
+	}
+	if len(result.Results) == 0 {
+		t.Errorf("no results")
+	}
+	for _, e := range result.Results {
+		t.Logf("%d : %s", e.Timestamp, e.Event)
 	}
 }

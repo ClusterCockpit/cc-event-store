@@ -116,11 +116,11 @@ func (a *api) Init(wg *sync.WaitGroup, store storage.StorageManager, apiConfigFi
 		publicKey := ed25519.PublicKey(buf)
 		r.Handle("POST /api/write/", authHandler(http.HandlerFunc(a.HandleWrite), publicKey))
 		r.Handle("GET /api/query/", authHandler(http.HandlerFunc(a.HandleQuery), publicKey))
-		r.Handle("GET /api/free/", authHandler(http.HandlerFunc(a.HandleDelete), publicKey))
+		// r.Handle("GET /api/free/", authHandler(http.HandlerFunc(a.HandleDelete), publicKey))
 	} else {
 		r.HandleFunc("POST /api/write/", a.HandleWrite)
 		r.HandleFunc("GET /api/query/", a.HandleQuery)
-		r.HandleFunc("GET /api/free/", a.HandleDelete)
+		// r.HandleFunc("GET /api/free/", a.HandleDelete)
 	}
 
 	addr := fmt.Sprintf("%s:%s", a.config.Addr, a.config.Port)

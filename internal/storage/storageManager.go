@@ -1,119 +1,138 @@
 package storage
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"sync"
-	"time"
 
 	cclog "github.com/ClusterCockpit/cc-metric-collector/pkg/ccLogger"
 	lp "github.com/ClusterCockpit/cc-metric-collector/pkg/ccMetric"
 )
 
-type storageManagerEntry struct {
-	store SqliteStorage
+var AvailableStorageBackends map[string]Storage = map[string]Storage{
+	"sqlite":   new(sqliteStorage),
+	"postgres": new(postgresStorage),
+	"influx":   new(influxStorage),
 }
 
-type storageManger struct {
-	basefolder string
-	clusters   map[string]storageManagerEntry
-	done       chan bool
-	input      chan lp.CCMetric
-	configfile string
-	wg         *sync.WaitGroup
+type QueryRequestType int
+
+const (
+	QueryTypeEvent QueryRequestType = 0
+	QueryTypeLog   QueryRequestType = 1
+)
+
+type storageManager struct {
+	store Storage
+}
+
+type QueryCondition struct {
+	Pred      string
+	Operation string
+	Args      []interface{}
+}
+
+type QueryRequest struct {
+	Event      string
+	From       int64
+	To         int64
+	Hostname   string
+	Cluster    string
+	QueryType  QueryRequestType
+	Conditions []QueryCondition
+}
+
+type QueryResultEvent struct {
+	Timestamp int64
+	Event     string
+}
+
+type QueryResult struct {
+	Results []QueryResultEvent
+	Error   error
 }
 
 type StorageManager interface {
-	Start() error
 	Close()
-	SetWriteInput(input chan lp.CCMetric)
-	Submit(cluster string, event lp.CCMetric) error
-	Query(cluster, event, hostname string, from, to int64, conditions []string) ([]QueryResultEvent, error)
-	Delete(cluster string, to int64) error
+	Start()
+	Query(cluster, event, hostname string, from, to int64, conditions []QueryCondition) (QueryResult, error)
+	Write(msg lp.CCMetric)
+	SetInput(input chan lp.CCMetric)
 }
 
-func (sm *storageManger) Start() error {
-	cclog.ComponentDebug("StorageManager", "START")
-	sm.wg.Add(1)
-	go func() {
-		for {
-			select {
-			case <-sm.done:
-				sm.wg.Done()
-				cclog.ComponentDebug("StorageManager", "DONE")
-				return
-			case e := <-sm.input:
-				cclog.ComponentDebug("StorageManager", "Input")
-				if e.HasTag("cluster") {
-					if c, ok := e.GetTag("cluster"); ok {
-						sm.Submit(c, e)
-					}
-				}
-			}
-		}
-	}()
-	cclog.ComponentDebug("StorageManager", "STARTED")
-	return nil
-}
-
-func (sm *storageManger) Close() {
-	for _, sme := range sm.clusters {
-		sme.store.Close()
+func (sm *storageManager) Close() {
+	if sm.store != nil {
+		sm.store.Close()
 	}
-	cclog.ComponentDebug("StorageManager", "CLOSE")
-	sm.done <- true
 }
 
-func (sm *storageManger) SetWriteInput(input chan lp.CCMetric) {
-	sm.input = input
-}
-
-func (sm *storageManger) Submit(cluster string, event lp.CCMetric) error {
-	if sme, ok := sm.clusters[cluster]; !ok {
-		cclog.ComponentDebug("StorageManager", "New storage for", cluster)
-		s, err := NewStorage(sm.wg, sm.basefolder, cluster, time.Hour*24*2)
-		if err == nil {
-			sme.store = s
-			sme.store.Start()
-			sm.clusters[cluster] = sme
-		} else {
-			return fmt.Errorf("failed to create storage for cluster %s", cluster)
-		}
+func (sm *storageManager) Start() {
+	if sm.store != nil {
+		sm.store.Start()
 	}
-	if sme, ok := sm.clusters[cluster]; ok {
-		cclog.ComponentDebug("StorageManager", "SUBMIT", cluster)
-		sme.store.Submit(event)
-	}
-	return nil
 }
 
-func (sm *storageManger) Query(cluster, event, hostname string, from, to int64, conditions []string) ([]QueryResultEvent, error) {
-	if sme, ok := sm.clusters[cluster]; ok {
-		cclog.ComponentDebug("StorageManager", "Query", cluster)
-		return sme.store.Query(QueryRequest{
+func (sm *storageManager) Query(cluster, event, hostname string, from, to int64, conditions []QueryCondition) (QueryResult, error) {
+	if sm.store != nil {
+		request := QueryRequest{
+			Cluster:    cluster,
 			Event:      event,
-			From:       from,
-			To:         to,
 			Hostname:   hostname,
+			To:         to,
+			From:       from,
 			Conditions: conditions,
-		})
+		}
+
+		return sm.store.Query(request)
 	}
-	return nil, fmt.Errorf("query request for unknown cluster %s", cluster)
+	err := fmt.Errorf("no storage backend active, cannot query")
+	return QueryResult{Results: make([]QueryResultEvent, 0), Error: err}, err
 }
 
-func (sm *storageManger) Delete(cluster string, to int64) error {
-	if sme, ok := sm.clusters[cluster]; ok {
-		cclog.ComponentDebug("StorageManager", "Query", cluster)
-		return sme.store.Delete(to)
+func (sm *storageManager) SetInput(input chan lp.CCMetric) {
+	if sm.store != nil {
+		sm.store.SetInput(input)
 	}
-	return fmt.Errorf("delete request for unknown cluster %s", cluster)
 }
 
-func NewStorageManager(wg *sync.WaitGroup, configFile string) (StorageManager, error) {
-	sm := new(storageManger)
-	sm.wg = wg
-	sm.done = make(chan bool)
-	sm.basefolder = "./archive"
-	sm.configfile = configFile
-	sm.clusters = make(map[string]storageManagerEntry)
+func (sm *storageManager) Write(msg lp.CCMetric) {
+	if sm.store != nil {
+		sm.store.Write(msg)
+	}
+}
+
+func NewStorageManager(wg *sync.WaitGroup, storageConfigFile string) (StorageManager, error) {
+	sm := new(storageManager)
+
+	configFile, err := os.Open(storageConfigFile)
+	if err != nil {
+		cclog.Error(err.Error())
+		return nil, err
+	}
+	defer configFile.Close()
+
+	var config storageConfig
+	jsonParser := json.NewDecoder(configFile)
+	err = jsonParser.Decode(&config)
+	if err != nil {
+		cclog.Error(err.Error())
+		return nil, err
+	}
+
+	if _, ok := AvailableStorageBackends[config.Type]; !ok {
+		err = fmt.Errorf("unknown storage type %s", config.Type)
+		return nil, err
+	}
+
+	s := AvailableStorageBackends[config.Type]
+
+	err = s.Init(wg, storageConfigFile)
+	if err != nil {
+		cclog.Error(err.Error())
+		return nil, err
+	}
+	sm.store = s
+
 	return sm, nil
 }
