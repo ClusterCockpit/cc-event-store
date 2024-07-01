@@ -15,7 +15,7 @@ specifcation at [cc-specification](https://github.com/ClusterCockpit/cc-specific
 ```
 
 For the format of each file, see here:
-- [Receivers](https://github.com/ClusterCockpit/cc-metric-collector/receivers)
+- [Receivers](https://github.com/ClusterCockpit/cc-metric-collector/tree/main/receivers)
 - [Storage](./internal/storage/README.md)
 - [API](./internal/api/README.md)
 
