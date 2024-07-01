@@ -22,7 +22,7 @@ type apiConfig struct {
 
 	// Maximum amount of time to wait for the next request when keep-alives are enabled
 	// should be larger than the measurement interval to keep the connection open
-	IdleTimeout string `json:"idle_timeout"`
+	IdleTimeout string `json:"idle_timeout,omitempty"`
 	idleTimeout time.Duration
 
 	// Controls whether HTTP keep-alives are enabled. By default, keep-alives are enabled
@@ -86,6 +86,8 @@ func (a *api) Init(wg *sync.WaitGroup, store storage.StorageManager, apiConfigFi
 	a.wg = wg
 	a.store = store
 	a.started = false
+	a.config.Addr = "localhost"
+	a.config.Port = "8088"
 
 	a.config.KeepAlivesEnabled = true
 	// should be larger than the measurement interval to keep the connection open
