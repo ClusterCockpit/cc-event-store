@@ -48,8 +48,8 @@ type SqlStorage interface {
 	Write(msg lp.CCMetric)
 }
 
-const createEventsTableStmt = `create table IF NOT EXISTS %s (id integer primary key not null, timestamp bigint, name text, hostname text, type text, typeid text, stype text, stypeid text, othertags JSON, event text);`
-const createLogsTableStmt = `create table IF NOT EXISTS %s (id integer primary key not null, timestamp bigint, name text, hostname text, type text, typeid text, stype text, stypeid text, othertags JSON, log text);`
+const createEventsTableStmt = `create table IF NOT EXISTS %s (id integer primary key, timestamp bigint, name text, hostname text, type text, typeid text, stype text, stypeid text, othertags JSON, event text);`
+const createLogsTableStmt = `create table IF NOT EXISTS %s (id integer primary key, timestamp bigint, name text, hostname text, type text, typeid text, stype text, stypeid text, othertags JSON, log text);`
 
 // const insertEventsStmt = `insert into %s (id, timestamp, name, hostname, type, typeid, stype, stypeid, othertags, event) values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`
 // const insertLogsStmt = `insert into %s (id, timestamp, name, hostname, type, typeid, stype, stypeid, othertags, log) values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`
@@ -94,17 +94,17 @@ func create_cluster_table(tablename string, handle *sql.DB) (int64, error) {
 		cclog.Error(fmt.Sprintf("%q: %s", err, stmt))
 		return -1, err
 	}
-	laststmt := sq.Select("max(id)").From(tablename)
-	res, err := laststmt.RunWith(handle).Query()
-	if err != nil {
-		return -1, err
-	}
-	idx := int64(0)
-	for res.Next() {
-		res.Scan(&idx)
-	}
+	// laststmt := sq.Select("max(id)").From(tablename)
+	// res, err := laststmt.RunWith(handle).Query()
+	// if err != nil {
+	// 	return -1, err
+	// }
+	// idx := int64(0)
+	// for res.Next() {
+	// 	res.Scan(&idx)
+	// }
 
-	return idx, nil
+	return 0, nil
 }
 
 func (s *sqlStorage) delete(to int64) error {
@@ -277,34 +277,37 @@ func (s *sqlStorage) Write(msg lp.CCMetric) {
 			}
 			tablename += "_" + LOG_FIELD_KEY + "s"
 		}
-		myid := int64(-1)
-		s.last_lock.Lock()
-		if _, ok := s.last_rowids[tablename]; !ok {
-			last_id, err := create_cluster_table(tablename, s.handle)
-			if err != nil {
-				return
-			}
-			s.last_rowids[tablename] = sqlStorageTableID{
-				Last: last_id,
-				Lock: &sync.Mutex{},
-			}
-		}
-		x := s.last_rowids[tablename]
-		x.Last++
-		s.last_rowids[tablename] = x
-		myid = x.Last
-		s.last_lock.Unlock()
+		_, err := create_cluster_table(tablename, s.handle)
+		// myid := int64(-1)
+		// s.last_lock.Lock()
+		// if _, ok := s.last_rowids[tablename]; !ok {
+		// 	last_id, err := create_cluster_table(tablename, s.handle)
+		// 	if err != nil {
+		// 		return
+		// 	}
+		// 	s.last_rowids[tablename] = sqlStorageTableID{
+		// 		Last: last_id,
+		// 		Lock: &sync.Mutex{},
+		// 	}
+		// }
+		// x := s.last_rowids[tablename]
+		// x.Last++
+		// s.last_rowids[tablename] = x
+		// myid = x.Last
+		// s.last_lock.Unlock()
 
-		if myid < 0 {
-			cclog.ComponentError(s.name, "Last ID of table", tablename, "not set")
-			return
-		}
+		// if myid < 0 {
+		// 	cclog.ComponentError(s.name, "Last ID of table", tablename, "not set")
+		// 	return
+		// }
 
 		cols := make([]string, 0)
 		args := make([]interface{}, 0)
-		cols = append(cols, "id", "timestamp", "name")
-		args = append(args, myid, msg.Time().Unix(), msg.Name())
-		cclog.ComponentDebug(s.name, fmt.Sprintf("Write: add %s -> %v", "id", myid))
+		//cols = append(cols, "id", "timestamp", "name")
+		cols = append(cols, "timestamp", "name")
+		//args = append(args, myid, msg.Time().Unix(), msg.Name())
+		args = append(args, msg.Time().Unix(), msg.Name())
+		//cclog.ComponentDebug(s.name, fmt.Sprintf("Write: add %s -> %v", "id", myid))
 		cclog.ComponentDebug(s.name, fmt.Sprintf("Write: add %s -> %v", "timestamp", msg.Time().Unix()))
 		cclog.ComponentDebug(s.name, fmt.Sprintf("Write: add %s -> %v", "name", msg.Name()))
 		if h, ok := msg.GetTag(HOSTNAME_TAG_KEY); ok {

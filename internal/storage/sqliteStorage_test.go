@@ -26,7 +26,7 @@ func Write_testconfig(filename string) error {
 	defer f.Close()
 
 	config := sqliteStorageConfig{
-		Type:      "sql",
+		Type:      "sqlite",
 		Path:      fmt.Sprintf("%s/%s", TEST_DB_PATH, TEST_DB_NAME),
 		Retention: "48h",
 		Flags: []string{

@@ -72,7 +72,7 @@ func (s *sqliteStorage) Init(wg *sync.WaitGroup, configfile string) error {
 		}
 	}
 	cclog.ComponentDebug(s.name, "Open sql3 DB", fname_with_opts)
-	db, err := sql.Open("sql3", fname_with_opts)
+	db, err := sql.Open("sqlite3", fname_with_opts)
 	if err != nil {
 		cclog.ComponentError(s.name, "Failed to open database", fname_with_opts, ":", err.Error())
 		return err
