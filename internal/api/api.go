@@ -9,9 +9,9 @@ import (
 	"slices"
 	"time"
 
-	"github.com/ClusterCockpit/cc-event-store/internal/storage"
+	lp "github.com/ClusterCockpit/cc-energy-manager/pkg/cc-message"
+	storage "github.com/ClusterCockpit/cc-event-store/internal/storage"
 	cclog "github.com/ClusterCockpit/cc-metric-collector/pkg/ccLogger"
-	lp "github.com/ClusterCockpit/cc-metric-collector/pkg/ccMetric"
 	influx "github.com/influxdata/line-protocol/v2/lineprotocol"
 )
 
@@ -99,7 +99,16 @@ func (a *api) HandleQuery(w http.ResponseWriter, r *http.Request) {
 	}
 
 	do_query := func(cluster, event, hostname string, from, to int64, conditions []storage.QueryCondition) (ApiMetricData, error) {
-		res, err := a.store.Query(cluster, event, hostname, from, to, conditions)
+		request := storage.QueryRequest{
+			Event:      event,
+			To:         to,
+			From:       from,
+			Hostname:   hostname,
+			Cluster:    cluster,
+			QueryType:  storage.QueryTypeEvent,
+			Conditions: conditions,
+		}
+		res, err := a.store.Query(request)
 		if err != nil {
 			err = fmt.Errorf("failed to parse API request: %v", err.Error())
 			return ApiMetricData{}, err
@@ -256,7 +265,7 @@ func (a *api) HandleWrite(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		y, _ := lp.New(
+		y, _ := lp.NewMessage(
 			string(measurement),
 			tags,
 			map[string]string{},
@@ -264,7 +273,10 @@ func (a *api) HandleWrite(w http.ResponseWriter, r *http.Request) {
 			t,
 		)
 
-		a.store.Write(y)
+		ch := a.store.GetInput()
+		if ch != nil {
+			ch <- &y
+		}
 	}
 	err := d.Err()
 	if err != nil {

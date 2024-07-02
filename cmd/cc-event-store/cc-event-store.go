@@ -8,15 +8,14 @@ import (
 	"sync"
 	"syscall"
 
+	lp2 "github.com/ClusterCockpit/cc-energy-manager/pkg/cc-message"
 	"github.com/ClusterCockpit/cc-event-store/internal/api"
-	"github.com/ClusterCockpit/cc-event-store/internal/storage"
+	storage "github.com/ClusterCockpit/cc-event-store/internal/storage"
 	cclog "github.com/ClusterCockpit/cc-metric-collector/pkg/ccLogger"
 	lp "github.com/ClusterCockpit/cc-metric-collector/pkg/ccMetric"
 
 	"github.com/ClusterCockpit/cc-metric-collector/receivers"
 )
-
-var storageEngine storage.StorageManager = nil
 
 type RuntimeConfig struct {
 	storageEngine  storage.StorageManager
@@ -131,7 +130,7 @@ func mainFunc() int {
 
 	// Connect receive manager to metric router
 	ReceiveToRouterChannel := make(chan lp.CCMetric, 200)
-	RouterToStorageChannel := make(chan lp.CCMetric, 200)
+	RouterToStorageChannel := make(chan *lp2.CCMessage, 200)
 	ReceiveManager.AddOutput(ReceiveToRouterChannel)
 	rcfg.receiveManager = ReceiveManager
 	rcfg.router.SetInput(ReceiveToRouterChannel)

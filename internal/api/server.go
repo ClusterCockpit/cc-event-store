@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ClusterCockpit/cc-event-store/internal/storage"
+	storage "github.com/ClusterCockpit/cc-event-store/internal/storage"
 	cclog "github.com/ClusterCockpit/cc-metric-collector/pkg/ccLogger"
 	httpSwagger "github.com/swaggo/http-swagger"
 )
