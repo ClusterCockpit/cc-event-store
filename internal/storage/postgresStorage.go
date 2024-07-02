@@ -8,6 +8,7 @@ import (
 
 	cclog "github.com/ClusterCockpit/cc-metric-collector/pkg/ccLogger"
 	sq "github.com/Masterminds/squirrel"
+	_ "github.com/lib/pq"
 )
 
 type postgresStorageConfig struct {
