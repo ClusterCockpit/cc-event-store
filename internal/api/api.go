@@ -332,3 +332,20 @@ func (a *api) HandleWrite(w http.ResponseWriter, r *http.Request) {
 
 // 	w.WriteHeader(http.StatusOK)
 // }
+
+func (a *api) HandleStats(w http.ResponseWriter, r *http.Request) {
+	cclog.ComponentDebug("REST", "HandleStats")
+
+	stats := a.store.Stats()
+
+	data, err := json.Marshal(stats)
+	if err != nil {
+		msg := "HandleStats: failed to marshal stats to JSON: " + err.Error()
+		cclog.ComponentError("REST", msg)
+		handleError(err, http.StatusInternalServerError, w)
+	}
+	w.Write(data)
+	w.Header().Add("Content-Type", "application/json")
+	//w.WriteHeader(http.StatusOK)
+
+}

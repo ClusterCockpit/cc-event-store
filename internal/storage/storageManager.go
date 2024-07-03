@@ -33,6 +33,12 @@ type storageManagerConfig struct {
 	Backend    json.RawMessage `json:"backend"`
 }
 
+type StorageManagerStats struct {
+	Manager storageStats      `json:"manager"`
+	Backend storageStats      `json:"backend"`
+	Info    map[string]string `json:"info"`
+}
+
 type storageManager struct {
 	store         Storage
 	wg            *sync.WaitGroup
@@ -47,9 +53,12 @@ type storageManager struct {
 	// Lock to assure that only one timer is running at a time
 	timerLock sync.Mutex
 
-	scheduler gocron.Scheduler
-	buffer    StorageBuffer
-	started   bool
+	scheduler  gocron.Scheduler
+	buffer     StorageBuffer
+	started    bool
+	stats      storageStats
+	storeStats storageStats
+	info       map[string]string
 }
 
 type QueryCondition struct {
@@ -84,6 +93,7 @@ type StorageManager interface {
 	Query(request QueryRequest) (QueryResult, error)
 	SetInput(input chan *lp.CCMessage)
 	GetInput() chan *lp.CCMessage
+	Stats() StorageManagerStats
 }
 
 func (sm *storageManager) Close() {
@@ -108,6 +118,7 @@ func (sm *storageManager) Close() {
 			sm.scheduler = nil
 		}
 	}
+	sm.stats.Close()
 	sm.started = false
 }
 
@@ -115,9 +126,9 @@ func (sm *storageManager) Flush() {
 	if sm.store != nil {
 		sm.buffer.Lock()
 		if sm.buffer.Len() > 0 {
-			total := 0
+
 			sm.store.Write(sm.buffer.Get())
-			total += sm.buffer.Len()
+			sm.stats.UpdateStats("flushed", int64(sm.buffer.Len()))
 			sm.buffer.Clear()
 			if len(sm.input) > 0 {
 				for i := 0; i < len(sm.input); i++ {
@@ -125,11 +136,10 @@ func (sm *storageManager) Flush() {
 				}
 				if sm.buffer.Len() > 0 {
 					sm.store.Write(sm.buffer.Get())
-					total += sm.buffer.Len()
+					sm.stats.UpdateStats("flushed", int64(sm.buffer.Len()))
 					sm.buffer.Clear()
 				}
 			}
-			cclog.ComponentDebug("StorageManager", "Flush", total)
 		}
 		sm.buffer.Unlock()
 		if sm.flushTimer != nil {
@@ -172,12 +182,14 @@ func (sm *storageManager) Start() {
 	go func() {
 
 		to_buffer_or_write_batch := func(msg *lp.CCMessage) {
-			if lp.IsEvent(*msg) || (lp.IsLog(*msg) && sm.config.StoreLogs) {
+			mymsg := *msg
+			if lp.IsEvent(mymsg) || (lp.IsLog(mymsg) && sm.config.StoreLogs) {
 				if sm.buffer.Len() < sm.config.BatchSize {
-					cclog.ComponentDebug("StorageManager", "Append to buffer", *msg)
+					cclog.ComponentDebug("StorageManager", "Append to buffer", mymsg)
 					sm.buffer.Add(msg)
 				} else {
 					cclog.ComponentDebug("StorageManager", "Write batch of", sm.buffer.Len(), "messages")
+					sm.stats.UpdateStats("write_batch", int64(sm.buffer.Len()))
 					sm.store.Write(sm.buffer.Get())
 					sm.buffer.Clear()
 
@@ -193,11 +205,15 @@ func (sm *storageManager) Start() {
 				sm.wg.Done()
 				return
 			case e := <-sm.input:
+				processed := int64(0)
 				sm.buffer.Lock()
 				to_buffer_or_write_batch(e)
+				processed++
 				for i := 0; i < sm.config.MaxProcess && len(sm.input) > 0; i++ {
 					to_buffer_or_write_batch(<-sm.input)
+					processed++
 				}
+				sm.stats.UpdateStats("processed", processed)
 				sm.buffer.Unlock()
 				if sm.flushTime == 0 {
 					// Directly flush if no flush delay is configured
@@ -218,6 +234,7 @@ func (sm *storageManager) Start() {
 								defer sm.timerLock.Unlock()
 								cclog.ComponentDebug("StorageManager", "Starting flush triggered by flush timer")
 								sm.Flush()
+								sm.stats.UpdateStats("timer_flushes", 1)
 							})
 					}
 				}
@@ -230,7 +247,9 @@ func (sm *storageManager) Start() {
 
 func (sm *storageManager) Query(request QueryRequest) (QueryResult, error) {
 	if sm.store != nil {
+		sm.stats.UpdateStats("query_flushes", 1)
 		sm.Flush()
+		sm.stats.UpdateStats("queries", 1)
 		return sm.store.Query(request)
 	}
 	err := fmt.Errorf("no storage backend active, cannot query")
@@ -242,6 +261,42 @@ func (sm *storageManager) SetInput(input chan *lp.CCMessage) {
 }
 func (sm *storageManager) GetInput() chan *lp.CCMessage {
 	return sm.input
+}
+
+func (sm *storageManager) Stats() StorageManagerStats {
+
+	manager := storageStats{
+		Errors: make(map[string]int64),
+		Stats:  make(map[string]int64),
+	}
+	backend := storageStats{
+		Errors: make(map[string]int64),
+		Stats:  make(map[string]int64),
+	}
+
+	sm.stats.lock.Lock()
+	for k, v := range sm.stats.Errors {
+		manager.Errors[k] = v
+	}
+	for k, v := range sm.stats.Stats {
+		manager.Stats[k] = v
+	}
+	sm.stats.lock.Unlock()
+
+	sm.storeStats.lock.Lock()
+	for k, v := range sm.storeStats.Errors {
+		backend.Errors[k] = v
+	}
+	for k, v := range sm.storeStats.Stats {
+		backend.Stats[k] = v
+	}
+	sm.storeStats.lock.Unlock()
+
+	return StorageManagerStats{
+		Manager: manager,
+		Backend: backend,
+		Info:    sm.info,
+	}
 }
 
 func NewStorageManager(wg *sync.WaitGroup, storageConfigFile string) (StorageManager, error) {
@@ -308,7 +363,13 @@ func NewStorageManager(wg *sync.WaitGroup, storageConfigFile string) (StorageMan
 	cclog.ComponentDebug("StorageManager", "Getting storage for", backendConfig.Type)
 	s := AvailableStorageBackends[backendConfig.Type]
 
-	err = s.Init(wg, config.Backend)
+	err = sm.storeStats.Init()
+	if err != nil {
+		cclog.Error(err.Error())
+		return nil, err
+	}
+
+	err = s.Init(config.Backend, &sm.storeStats)
 	if err != nil {
 		cclog.Error(err.Error())
 		return nil, err
@@ -321,9 +382,19 @@ func NewStorageManager(wg *sync.WaitGroup, storageConfigFile string) (StorageMan
 		return nil, err
 	}
 
+	err = sm.stats.Init()
+	if err != nil {
+		cclog.Error(err.Error())
+		return nil, err
+	}
+
 	sm.done = make(chan struct{})
 	sm.wg = wg
 	sm.buffer = b
+	sm.info = make(map[string]string)
+	sm.info["retention_time"] = config.Retention
+	sm.info["flush_time"] = config.FlushTime
+	sm.info["backend_type"] = backendConfig.Type
 
 	return sm, nil
 }

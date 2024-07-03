@@ -48,25 +48,30 @@ type SqlStorage interface {
 	Storage
 }
 
-func (s *sqlStorage) PreInit(wg *sync.WaitGroup, config json.RawMessage) error {
+func (s *sqlStorage) PreInit(config json.RawMessage, stats *storageStats) error {
+	cclog.ComponentDebug(s.name, "PreInit")
 	s.tablesMap = make(map[string]struct{})
+	s.stats = stats
 	return nil
 }
 
-func (s *sqlStorage) PostInit(wg *sync.WaitGroup, config json.RawMessage) error {
+func (s *sqlStorage) PostInit(config json.RawMessage) error {
+	cclog.ComponentDebug(s.name, "PostInit")
 	return nil
 }
 
-func (s *sqlStorage) Init(wg *sync.WaitGroup, config json.RawMessage) error {
+func (s *sqlStorage) Init(config json.RawMessage, stats *storageStats) error {
 	s.name = "SQLStorage"
 	s.handle = nil
+
 	cclog.ComponentDebug(s.name, "Init")
-	s.PostInit(wg, config)
-	return s.PostInit(wg, config)
+	s.PreInit(config, stats)
+	return s.PostInit(config)
 }
 
 func (s *sqlStorage) Query(request QueryRequest) (QueryResult, error) {
 	if s.handle == nil {
+		s.stats.UpdateError("not_initialized", 1)
 		return QueryResult{}, errors.New("cannot query, not initialized")
 	}
 	tablename := request.Cluster
@@ -75,6 +80,7 @@ func (s *sqlStorage) Query(request QueryRequest) (QueryResult, error) {
 	} else if request.QueryType == QueryTypeLog {
 		tablename += "_" + LOG_FIELD_KEY + "s"
 	} else {
+		s.stats.UpdateError("query_unknown_type", 1)
 		return QueryResult{}, errors.New("unknown query type in request")
 	}
 	cclog.ComponentDebug(s.name, "Query for table", tablename)
@@ -125,6 +131,7 @@ func (s *sqlStorage) Query(request QueryRequest) (QueryResult, error) {
 	res, err := qstmt.RunWith(s.handle).Query()
 	if err != nil {
 		cclog.ComponentError(s.name, "Error running query:", err.Error())
+		s.stats.UpdateError("query_exec_failed", 1)
 		return QueryResult{}, err
 	}
 	out := QueryResult{
@@ -143,9 +150,11 @@ func (s *sqlStorage) Query(request QueryRequest) (QueryResult, error) {
 		} else {
 			out.Results = out.Results[:0]
 			out.Error = err
+			s.stats.UpdateError("query_scan_failed", 1)
 			return out, err
 		}
 	}
+	s.stats.UpdateStats("queries", 1)
 	return out, nil
 }
 
@@ -155,46 +164,52 @@ func (s *sqlStorage) CreateTable(tablename string) error {
 	_, err := s.handle.Exec(stmt)
 	if err != nil {
 		cclog.Error(fmt.Sprintf("%q: %s", err, stmt))
+		s.stats.UpdateError("create_table_failed", 1)
 		return err
 	}
 	return nil
 }
 
 func (s *sqlStorage) Write(msgs []*lp.CCMessage) error {
-	cclog.ComponentDebug(s.name, "Write", s.handle)
 	if s.handle == nil {
+		s.stats.UpdateError("not_initialized", 1)
 		return errors.New("cannot write, not initialized")
 	}
+	dbhandle := s.handle
 	cclog.ComponentDebug(s.name, "Write")
 	othertags := make(map[string]string)
 	colargs := make(map[string]interface{})
 
-	error_no_cluster_tag := 0
-	error_create_table := 0
-	error_decode_othertags := 0
-	error_exec := 0
-	error_sql := 0
-	error_sql_prepare := 0
-
-	tx, err := s.handle.Begin()
+	// Begin a new SQL transaction
+	tx, err := dbhandle.Begin()
 	if err != nil {
 		cclog.ComponentError(s.name, err.Error())
+		s.stats.UpdateError("write_sql_begin_failed", 1)
 		return err
 	}
+	// Rollback is executed only if the Commit fails
 	defer tx.Rollback()
 
 	for _, msg := range msgs {
 		if msg == nil || *msg == nil {
 			continue
 		}
+		// Clear maps we reuse in this iteration
 		clear(othertags)
 		clear(colargs)
-		cclog.ComponentDebug(s.name, *msg)
+		// First we need the cluster name and take that from the
+		// message itself. As a workaround we could get the hostlist
+		// of each cluster from Cluster Cockpit and resolve it in
+		// cases the message does not contain the 'cluster' tag
 		if _, ok := (*msg).GetTag(CLUSTER_TAG_KEY); !ok {
-			error_no_cluster_tag++
+			s.stats.UpdateError("write_no_cluster_tag", 1)
 			continue
 		}
 		cluster, _ := (*msg).GetTag(CLUSTER_TAG_KEY)
+		// Depending whether the table should handle CCEvent or
+		// CCLog messages, we add it to the cluster name.
+		// Moreover, we get the event or log string and add it
+		// to the colargs map
 		tablename := cluster
 		if lp.IsEvent(*msg) {
 			tablename += "_" + EVENT_FIELD_KEY + "s"
@@ -206,26 +221,42 @@ func (s *sqlStorage) Write(msgs []*lp.CCMessage) error {
 			if x, ok := (*msg).GetField(LOG_FIELD_KEY); ok {
 				colargs[MetricToSchema[LOG_FIELD_KEY]] = x
 			}
+		} else {
+			s.stats.UpdateError("write_invalid_message_type", 1)
+			continue
 		}
+		// Although each SQL backend using this function
+		// gets a list of existing table from the database,
+		// we manage an own lookup map. If there is no entry
+		// in the map for the table, we create a new table
+		// and add the table in the lookup map.
+		// This table needs to be protected for lookup (read
+		// lock) and adding (write lock).
 		s.tablesLock.RLock()
 		if _, ok := s.tablesMap[tablename]; !ok {
 			err := s.CreateTable(tablename)
 			if err != nil {
-				error_create_table++
+				s.stats.UpdateError("write_create_table_failed", 1)
 				s.tablesLock.RUnlock()
 				continue
 			}
 			s.tablesLock.RUnlock()
 			s.tablesLock.Lock()
+			// No futher check whether the table already exists
 			s.tablesMap[tablename] = struct{}{}
 			s.tablesLock.Unlock()
+			s.stats.UpdateStats("active_tables", 1)
 		} else {
 			s.tablesLock.RUnlock()
 		}
 
+		// Add the info that is always present in a CCMessage
 		colargs["timestamp"] = (*msg).Time().Unix()
 		colargs["name"] = (*msg).Name()
 
+		// Iterate over the tags and check which one should
+		// be part of colargs and which are stored in the
+		// JSON field 'othertags'
 		for k, v := range (*msg).Tags() {
 			if colname, ok := MetricToSchema[k]; ok {
 				// Filters out all tags with
@@ -237,19 +268,22 @@ func (s *sqlStorage) Write(msgs []*lp.CCMessage) error {
 				othertags[k] = v
 			}
 		}
+		// Add the 'othertags' as JSON if there are any
 		if len(othertags) > 0 {
 			x, err := json.Marshal(othertags)
 			if err != nil {
-				error_decode_othertags++
+				s.stats.UpdateError("write_decode_othertags_failed", 1)
 			} else {
 				colargs["othertags"] = x
 			}
 		}
 
+		// Create the insert statement. Preserving the order of
+		// columns and values is task of squirrel package
 		isql, args, err := sq.Insert(tablename).SetMap(colargs).ToSql()
 		if err != nil {
 			cclog.ComponentError(s.name, "Cannot get SQL of insert statement")
-			error_sql++
+			s.stats.UpdateError("write_sql_invalid", 1)
 			continue
 		}
 
@@ -265,36 +299,24 @@ func (s *sqlStorage) Write(msgs []*lp.CCMessage) error {
 		// }
 		// defer stmt.Close()
 		// _, err = stmt.Exec(args...)
-		cclog.ComponentDebug(s.name, isql)
+		//cclog.ComponentDebug(s.name, isql)
+
+		// Execute the SQL statement with args inside the SQL transaction
 		_, err = tx.Exec(isql, args...)
 		if err != nil {
-			error_exec++
+			s.stats.UpdateError("write_sql_exec_failed", 1)
 		}
-	}
-	if error_no_cluster_tag+error_create_table+error_decode_othertags+error_exec > 0 {
-		if error_no_cluster_tag > 0 {
-			cclog.ComponentError(s.name, error_no_cluster_tag, "message had no cluster tag")
-		}
-		if error_create_table > 0 {
-			cclog.ComponentError(s.name, error_create_table, "tables failed to create")
-		}
-		if error_decode_othertags > 0 {
-			cclog.ComponentError(s.name, error_decode_othertags, "times failed to create othertags")
-		}
-		if error_exec > 0 {
-			cclog.ComponentError(s.name, error_exec, "times the execution of the insert statement failed")
-		}
-		if error_sql > 0 {
-			cclog.ComponentError(s.name, error_sql, "times the insert statement was invalid")
-		}
-		if error_sql_prepare > 0 {
-			cclog.ComponentError(s.name, error_sql_prepare, "times the preparation of the insert statement failed")
-		}
+		s.stats.UpdateStats("writes", 1)
 	}
 
+	// Commit the transaction
 	err = tx.Commit()
 	if err != nil {
 		cclog.ComponentError(s.name, err.Error())
+		if _, ok := s.stats.Errors["write_sql_commit_failed"]; !ok {
+			s.stats.Errors["write_sql_commit_failed"] = 0
+		}
+		s.stats.Errors["write_sql_commit_failed"] += 1
 		return err
 	}
 
@@ -302,8 +324,19 @@ func (s *sqlStorage) Write(msgs []*lp.CCMessage) error {
 }
 func (s *sqlStorage) Delete(to int64) error {
 	ecount := 0
+	event_tables := make([]string, 0)
+	// Get all event tables. Log tables cannot be deleted like this
+	// We acquire the read lock for the map to make it safe for
+	// concurrent calls with Write().
 	s.tablesLock.RLock()
 	for tab := range s.tablesMap {
+		if strings.Contains(tab, EVENT_FIELD_KEY) {
+			event_tables = append(event_tables, tab)
+		}
+	}
+	s.tablesLock.RUnlock()
+	// Now delete all CCMessages before 'to' in the event tables
+	for _, tab := range event_tables {
 		isql, iargs, err := sq.Delete(tab).Where(sq.LtOrEq{"timestamp": to}).ToSql()
 		if err == nil {
 			_, err = s.handle.Exec(isql, iargs...)
@@ -313,8 +346,12 @@ func (s *sqlStorage) Delete(to int64) error {
 		}
 	}
 	if ecount > 0 {
-		return fmt.Errorf("failed to delete messages older than %d from %d tables", to, ecount)
+		s.stats.lock.Lock()
+		s.stats.UpdateError("delete_sql_exec_failed", int64(ecount))
+		s.stats.lock.Unlock()
+		return fmt.Errorf("failed to delete messages older than %d from %d out of %d event tables", to, ecount, len(event_tables))
 	}
+	s.stats.UpdateStats("deletes", 1)
 	return nil
 }
 func (s *sqlStorage) Close() {

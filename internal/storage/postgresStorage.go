@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"sync"
 
 	cclog "github.com/ClusterCockpit/cc-metric-collector/pkg/ccLogger"
 	sq "github.com/Masterminds/squirrel"
@@ -31,14 +30,14 @@ type PostgresStorage interface {
 	SqlStorage
 }
 
-func (s *postgresStorage) Init(wg *sync.WaitGroup, config json.RawMessage) error {
+func (s *postgresStorage) Init(config json.RawMessage, stats *storageStats) error {
 	s.name = "PostgresStorage"
 	s.config.Server = "localhost"
 	s.config.Port = 5432
 	s.config.ConnectionTimeout = 1
 	cclog.ComponentDebug(s.name, "Init")
 
-	err := s.PreInit(wg, config)
+	err := s.PreInit(config, stats)
 	if err != nil {
 		cclog.ComponentError(s.name, err.Error())
 	}
@@ -94,5 +93,9 @@ func (s *postgresStorage) Init(wg *sync.WaitGroup, config json.RawMessage) error
 	}
 	s.tablesLock.Unlock()
 	rows.Close()
+	err = s.PostInit(config)
+	if err != nil {
+		cclog.ComponentError(s.name, err.Error())
+	}
 	return nil
 }

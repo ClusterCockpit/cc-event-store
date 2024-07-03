@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"sync"
 
 	cclog "github.com/ClusterCockpit/cc-metric-collector/pkg/ccLogger"
 	sq "github.com/Masterminds/squirrel"
@@ -28,11 +27,11 @@ type SqliteStorage interface {
 	SqlStorage
 }
 
-func (s *sqliteStorage) Init(wg *sync.WaitGroup, config json.RawMessage) error {
+func (s *sqliteStorage) Init(config json.RawMessage, stats *storageStats) error {
 	s.name = "SQLiteStorage"
 	cclog.ComponentDebug(s.name, "Init")
 
-	err := s.PreInit(wg, config)
+	err := s.PreInit(config, stats)
 	if err != nil {
 		cclog.ComponentError(s.name, err.Error())
 	}
@@ -84,6 +83,7 @@ func (s *sqliteStorage) Init(wg *sync.WaitGroup, config json.RawMessage) error {
 		cclog.ComponentError(s.name, "Failed to get database tables")
 		return err
 	}
+	s.stats.UpdateStats("active_tables", int64(len(s.tablesMap)))
 
-	return s.PostInit(wg, config)
+	return s.PostInit(config)
 }

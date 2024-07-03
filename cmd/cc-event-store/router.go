@@ -31,9 +31,9 @@ func (r *router) Start() error {
 	toCCMessage := func(msg lp.CCMetric) *lp2.CCMessage {
 		x, err := lp2.NewMessage(msg.Name(), msg.Tags(), empty_meta, msg.Fields(), msg.Time())
 		if err != nil {
-			return &x
+			return nil
 		}
-		return nil
+		return &x
 	}
 
 	r.wg.Add(1)
@@ -46,10 +46,9 @@ func (r *router) Start() error {
 					cclog.ComponentDebug("Router", "DONE")
 					return
 				case e := <-r.input:
-					cclog.ComponentDebug("Router", "FORWARD", e)
 					r.output <- toCCMessage(e)
 					for i := 0; i < len(r.input) && i < r.maxForward; i++ {
-						r.output <- toCCMessage(e)
+						r.output <- toCCMessage(<-r.input)
 					}
 				}
 			}
