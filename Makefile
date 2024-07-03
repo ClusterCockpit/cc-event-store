@@ -12,6 +12,10 @@ $(TARGET):
 	$(info ===>  BUILD cc-event-store)
 	@go build -ldflags=${LD_FLAGS} ./cmd/cc-event-store
 
+cc-event-client:
+	$(info ===>  BUILD cc-event-client)
+	@go build -ldflags=${LD_FLAGS} ./tools/cc-event-client
+
 swagger:
 	$(info ===>  GENERATE swagger)
 	@go run github.com/swaggo/swag/cmd/swag init -d ./internal/api -g api.go -o ./api
