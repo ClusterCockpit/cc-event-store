@@ -1,3 +1,7 @@
+// Copyright (C) NHR@FAU, University Erlangen-Nuremberg.
+// All rights reserved.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
 package storage2
 
 import (
@@ -299,7 +303,7 @@ func (s *sqlStorage) Write(msgs []*lp.CCMessage) error {
 		// }
 		// defer stmt.Close()
 		// _, err = stmt.Exec(args...)
-		//cclog.ComponentDebug(s.name, isql)
+		// cclog.ComponentDebug(s.name, isql)
 
 		// Execute the SQL statement with args inside the SQL transaction
 		_, err = tx.Exec(isql, args...)
@@ -322,6 +326,7 @@ func (s *sqlStorage) Write(msgs []*lp.CCMessage) error {
 
 	return nil
 }
+
 func (s *sqlStorage) Delete(to int64) error {
 	ecount := 0
 	event_tables := make([]string, 0)
@@ -354,6 +359,7 @@ func (s *sqlStorage) Delete(to int64) error {
 	s.stats.UpdateStats("deletes", 1)
 	return nil
 }
+
 func (s *sqlStorage) Close() {
 	if s.handle != nil {
 		s.handle.Close()

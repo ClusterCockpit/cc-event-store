@@ -1,3 +1,7 @@
+// Copyright (C) NHR@FAU, University Erlangen-Nuremberg.
+// All rights reserved.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
 package storage2
 
 import (
@@ -152,7 +156,6 @@ func (sm *storageManager) Flush() {
 }
 
 func (sm *storageManager) Start() {
-
 	sched, err := gocron.NewScheduler()
 	if err != nil {
 		cclog.ComponentError("StorageManager", "failed to initialize gocron scheduler")
@@ -180,7 +183,6 @@ func (sm *storageManager) Start() {
 	)
 	sm.wg.Add(1)
 	go func() {
-
 		to_buffer_or_write_batch := func(msg *lp.CCMessage) {
 			mymsg := *msg
 			if lp.IsEvent(mymsg) || (lp.IsLog(mymsg) && sm.config.StoreLogs) {
@@ -259,12 +261,12 @@ func (sm *storageManager) Query(request QueryRequest) (QueryResult, error) {
 func (sm *storageManager) SetInput(input chan *lp.CCMessage) {
 	sm.input = input
 }
+
 func (sm *storageManager) GetInput() chan *lp.CCMessage {
 	return sm.input
 }
 
 func (sm *storageManager) Stats() StorageManagerStats {
-
 	manager := storageStats{
 		Errors: make(map[string]int64),
 		Stats:  make(map[string]int64),

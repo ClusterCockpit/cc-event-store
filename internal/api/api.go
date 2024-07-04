@@ -1,3 +1,7 @@
+// Copyright (C) NHR@FAU, University Erlangen-Nuremberg.
+// All rights reserved.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
 package api
 
 import (
@@ -346,6 +350,6 @@ func (a *api) HandleStats(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Write(data)
 	w.Header().Add("Content-Type", "application/json")
-	//w.WriteHeader(http.StatusOK)
+	// w.WriteHeader(http.StatusOK)
 
 }

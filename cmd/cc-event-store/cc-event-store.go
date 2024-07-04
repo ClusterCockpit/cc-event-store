@@ -1,3 +1,7 @@
+// Copyright (C) NHR@FAU, University Erlangen-Nuremberg.
+// All rights reserved.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
 package main
 
 import (
@@ -90,11 +94,9 @@ func shutdownHandler(config *RuntimeConfig, shutdownSignal chan os.Signal) {
 		cclog.Debug("Shutdown REST API...")
 		config.api.Close()
 	}
-
 }
 
 func mainFunc() int {
-
 	var config CentralConfig
 	cliopts := ReadCli()
 
