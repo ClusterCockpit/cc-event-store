@@ -1,3 +1,7 @@
+// Copyright (C) NHR@FAU, University Erlangen-Nuremberg.
+// All rights reserved.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
 package api
 
 import (
@@ -36,11 +40,11 @@ type apiConfig struct {
 }
 
 type api struct {
-	wg      *sync.WaitGroup
-	started bool
-	server  *http.Server
 	store   storage.StorageManager
+	wg      *sync.WaitGroup
+	server  *http.Server
 	config  apiConfig
+	started bool
 }
 
 type API interface {
@@ -78,8 +82,8 @@ type ApiMetricData struct {
 	To    int64                `json:"to"`
 }
 type ApiMetricDataEntry struct {
-	Time  int64  `json:"timestamp"`
 	Event string `json:"Event"`
+	Time  int64  `json:"timestamp"`
 }
 
 func (a *api) Init(wg *sync.WaitGroup, store storage.StorageManager, apiConfigFile string) error {
@@ -137,7 +141,7 @@ func (a *api) Init(wg *sync.WaitGroup, store storage.StorageManager, apiConfigFi
 	// Create http server
 	a.server = &http.Server{
 		Addr:        addr,
-		Handler:     r, // handler to invoke, http.DefaultServeMux if nil
+		Handler:     r,
 		IdleTimeout: a.config.idleTimeout,
 	}
 	a.server.SetKeepAlivesEnabled(a.config.KeepAlivesEnabled)

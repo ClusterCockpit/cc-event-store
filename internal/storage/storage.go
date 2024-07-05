@@ -1,4 +1,8 @@
-package storage2
+// Copyright (C) NHR@FAU, University Erlangen-Nuremberg.
+// All rights reserved.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
+package storage
 
 import (
 	"encoding/json"
@@ -7,9 +11,9 @@ import (
 )
 
 type storage struct {
+	stats *storageStats
 	name  string
 	uri   string
-	stats *storageStats
 }
 
 type Storage interface {

@@ -1,4 +1,8 @@
-package storage2
+// Copyright (C) NHR@FAU, University Erlangen-Nuremberg.
+// All rights reserved.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
+package storage
 
 import (
 	"encoding/json"
@@ -13,10 +17,12 @@ import (
 	cclog "github.com/ClusterCockpit/cc-metric-collector/pkg/ccLogger"
 )
 
-const TEST_DB_NAME = `testing.db`
-const TEST_DB_PATH = `.`
-const TEST_CONFIG_PATH = `.`
-const TEST_CONFIG_NAME = `testing.json`
+const (
+	TEST_DB_NAME     = `testing.db`
+	TEST_DB_PATH     = `.`
+	TEST_CONFIG_PATH = `.`
+	TEST_CONFIG_NAME = `testing.json`
+)
 
 func Write_testconfig(filename string) error {
 	f, err := os.Create(filename)
@@ -114,7 +120,6 @@ func TestWriteManager(t *testing.T) {
 	sm.Start()
 
 	t.Cleanup(func() {
-
 		os.Remove(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 		dbfiles, err := filepath.Glob(fmt.Sprintf("%s/%s*", TEST_DB_PATH, TEST_DB_NAME))
 		if err != nil {
@@ -134,7 +139,7 @@ func TestWriteManager(t *testing.T) {
 		ch <- &m
 	}
 
-	//time.Sleep(time.Second * 2)
+	// time.Sleep(time.Second * 2)
 	mlist, _ = Generate_metrics(10)
 	for _, m := range mlist {
 		t.Log(m)
@@ -201,7 +206,6 @@ func BenchmarkWriteManagerParallel(b *testing.B) {
 		b.Run(fmt.Sprintf("threads=%d", i), gen_parallel_for_manager(ch, mlists[i-1]))
 		b.StopTimer()
 	}
-
 }
 
 func TestQueryManager(t *testing.T) {
@@ -227,7 +231,6 @@ func TestQueryManager(t *testing.T) {
 	sm.Start()
 
 	t.Cleanup(func() {
-
 		os.Remove(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 		dbfiles, err := filepath.Glob(fmt.Sprintf("%s/%s*", TEST_DB_PATH, TEST_DB_NAME))
 		if err != nil {

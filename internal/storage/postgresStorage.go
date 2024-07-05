@@ -1,4 +1,8 @@
-package storage2
+// Copyright (C) NHR@FAU, University Erlangen-Nuremberg.
+// All rights reserved.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
+package storage
 
 import (
 	"database/sql"
@@ -12,22 +16,18 @@ import (
 
 type postgresStorageConfig struct {
 	Type              string   `json:"type"`
-	Flags             []string `json:"flags,omitempty"`
 	Path              string   `json:"database_path"`
 	Username          string   `json:"username,omitempty"`
 	Password          string   `json:"password,omitempty"`
-	ConnectionTimeout int      `json:"connection_timeout,omitempty"`
 	Server            string   `json:"server,omitempty"`
+	Flags             []string `json:"flags,omitempty"`
+	ConnectionTimeout int      `json:"connection_timeout,omitempty"`
 	Port              int      `json:"port,omitempty"`
 }
 
 type postgresStorage struct {
 	sqlStorage
 	config postgresStorageConfig
-}
-
-type PostgresStorage interface {
-	SqlStorage
 }
 
 func (s *postgresStorage) Init(config json.RawMessage, stats *storageStats) error {

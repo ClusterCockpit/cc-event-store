@@ -1,3 +1,7 @@
+// Copyright (C) NHR@FAU, University Erlangen-Nuremberg.
+// All rights reserved.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
 package api
 
 import (
@@ -15,24 +19,22 @@ import (
 	influx "github.com/influxdata/line-protocol/v2/lineprotocol"
 )
 
-// @title                      cc-event-store REST API
-// @version                    1.0.0
-// @description                API for cc-event-store
-
-// @contact.name               ClusterCockpit Project
-// @contact.url                https://clustercockpit.org
-// @contact.email              support@clustercockpit.org
-
-// @license.name               MIT License
-// @license.url                https://opensource.org/licenses/MIT
-
-// @host                       localhost:8098
-// @basePath                   /api/
-
-// @securityDefinitions.apikey ApiKeyAuth
-// @in                         header
-// @name                       X-Auth-Token
+// api implements a rest api for event store
 //
+//	@title						cc-event-store REST API
+//	@version					1.0.0
+//	@description				API for cc-event-store
+//	@contact.name				ClusterCockpit Project
+//	@contact.url				https://clustercockpit.org
+//	@contact.email				support@clustercockpit.org
+//	@license.name				MIT License
+//	@license.url				https://opensource.org/licenses/MIT
+//	@host						localhost:8098
+//	@basePath					/api/
+//	@securityDefinitions.apikey	ApiKeyAuth
+//	@in							header
+//	@name						X-Auth-Token
+
 // ErrorResponse model
 type ErrorResponse struct {
 	// Statustext of Errorcode
@@ -50,40 +52,22 @@ func handleError(err error, statusCode int, rw http.ResponseWriter) {
 	})
 }
 
-// handleQuery godoc
-// @summary    Query events
-// @tags query
-// @description Query events.
-// @accept      json
-// @produce     json
-// @param       request body     api.ApiQueryRequest  true "API query payload object"
-// @success     200            {object} api.ApiQueryResponse  "API query response object"
-// @failure     400            {object} api.ErrorResponse       "Bad Request"
-// @failure     401   		   {object} api.ErrorResponse       "Unauthorized"
-// @failure     500            {object} api.ErrorResponse       "Internal Server Error"
-// @security    ApiKeyAuth
-// @router      /query/ [get]
+// HandleQuery handles query requests
+//
+//	@summary		Query events
+//	@tags			GET
+//	@description	Query events.
+//	@accept			json
+//	@produce		json
+//	@param			request	body		api.ApiQueryRequest		true	"API query payload object"
+//	@success		200		{object}	api.ApiQueryResponse	"API query response object"
+//	@failure		400		{object}	api.ErrorResponse		"Bad Request"
+//	@failure		401		{object}	api.ErrorResponse		"Unauthorized"
+//	@failure		500		{object}	api.ErrorResponse		"Internal Server Error"
+//	@security		ApiKeyAuth
+//	@router			/query/ [get]
 func (a *api) HandleQuery(w http.ResponseWriter, r *http.Request) {
 	cclog.ComponentDebug("REST", "HandleQuery")
-	// if r.Method != http.MethodGet {
-	// 	msg := "Only GET method allowed"
-	// 	http.Error(w, msg, http.StatusMethodNotAllowed)
-	// 	cclog.ComponentError("REST", msg)
-	// 	return
-	// }
-	// Check basic authentication
-
-	// vars := mux.Vars(r)
-	// cclog.ComponentDebug("URL parameters:", vars)
-	// if _, ok := vars["cluster"]; !ok {
-	// 	cclog.ComponentDebug("REST", "HandleWrite (BasicAuth)")
-	// 	msg := "HandleWrite: No cluster given as URL parameter"
-	// 	cclog.ComponentError("REST", msg)
-	// 	http.Error(w, msg, http.StatusBadRequest)
-	// 	return
-	// }
-	// cluster := vars["cluster"]
-
 	var req ApiQueryRequest
 	jsonParser := json.NewDecoder(r.Body)
 	err := jsonParser.Decode(&req)
@@ -190,19 +174,20 @@ func (a *api) HandleQuery(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleWrite godoc
-// @summary    Receive events
-// @tags write
-// @description Receive events in line-protocol
-// @accept      plain
-// @produce     json
-// @param       cluster        query string true "If the lines in the body do not have a cluster tag, use this value instead."
-// @success     200            {string} string  "ok"
-// @failure     400            {object} api.ErrorResponse       "Bad Request"
-// @failure     401      {object} api.ErrorResponse       "Unauthorized"
-// @failure     500            {object} api.ErrorResponse       "Internal Server Error"
-// @security    ApiKeyAuth
-// @router      /write/ [post]
+// HandleWrite handles writes to the event store
+//
+//	@summary		Receive events
+//	@tags			POST
+//	@description	Receive events in line-protocol
+//	@accept			plain
+//	@produce		json
+//	@param			cluster	query		string				true	"If the lines in the body do not have a cluster tag, use this value instead."
+//	@success		200		{string}	string				"ok"
+//	@failure		400		{object}	api.ErrorResponse	"Bad Request"
+//	@failure		401		{object}	api.ErrorResponse	"Unauthorized"
+//	@failure		500		{object}	api.ErrorResponse	"Internal Server Error"
+//	@security		ApiKeyAuth
+//	@router			/write/ [post]
 func (a *api) HandleWrite(w http.ResponseWriter, r *http.Request) {
 	cclog.ComponentDebug("REST", "HandleWrite")
 
@@ -289,50 +274,18 @@ func (a *api) HandleWrite(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// HandleDelete godoc
-// @summary    Delete events
-// @tags free
-// @description Delete events before given timestamp
-// @accept      plain
-// @produce     json
-// @param       cluster        query string true "If the lines in the body do not have a cluster tag, use this value instead."
-// @param       to        	   query string true "Delete events before this UNIX timestamp in seconds."
-// @success     200            {string} string  "ok"
-// @failure     400            {object} api.ErrorResponse       "Bad Request"
-// @failure     401            {object} api.ErrorResponse       "Unauthorized"
-// @failure     500            {object} api.ErrorResponse       "Internal Server Error"
-// @security    ApiKeyAuth
-// @router      /free/ [post]
-// func (a *api) HandleDelete(w http.ResponseWriter, r *http.Request) {
-// 	cclog.ComponentDebug("REST", "HandleDelete")
-// 	cluster := r.URL.Query().Get("cluster")
-// 	if cluster == "" {
-// 		handleError(errors.New("query parameter cluster is required"), http.StatusBadRequest, w)
-// 		return
-// 	}
-// 	to_string := r.URL.Query().Get("to")
-// 	if cluster == "" {
-// 		handleError(errors.New("query parameter to is required"), http.StatusBadRequest, w)
-// 		return
-// 	}
-
-// 	to, err := strconv.ParseInt(to_string, 10, 64)
-// 	if err != nil {
-// 		msg := "HandleDelete: Failed to parse " + to_string + ": " + err.Error()
-// 		cclog.ComponentError("REST", msg)
-// 		handleError(err, http.StatusInternalServerError, w)
-// 	}
-
-// 	err = a.store.Delete(cluster, to)
-// 	if err != nil {
-// 		msg := fmt.Sprintf("HandleDelete: Failed to delete events for cluster %s before %d: %v", cluster, to, err.Error())
-// 		cclog.ComponentError("REST", msg)
-// 		handleError(err, http.StatusInternalServerError, w)
-// 	}
-
-// 	w.WriteHeader(http.StatusOK)
-// }
-
+// HandleStats gets event store status
+//
+//	@summary		Get status
+//	@tags			GET
+//	@description	Retrieve event store status
+//	@produce		json
+//	@success		200	{string}	string				"ok"
+//	@failure		400	{object}	api.ErrorResponse	"Bad Request"
+//	@failure		401	{object}	api.ErrorResponse	"Unauthorized"
+//	@failure		500	{object}	api.ErrorResponse	"Internal Server Error"
+//	@security		ApiKeyAuth
+//	@router			/stats/ [get]
 func (a *api) HandleStats(w http.ResponseWriter, r *http.Request) {
 	cclog.ComponentDebug("REST", "HandleStats")
 
@@ -346,6 +299,4 @@ func (a *api) HandleStats(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Write(data)
 	w.Header().Add("Content-Type", "application/json")
-	//w.WriteHeader(http.StatusOK)
-
 }

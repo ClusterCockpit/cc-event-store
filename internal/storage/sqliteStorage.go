@@ -1,4 +1,8 @@
-package storage2
+// Copyright (C) NHR@FAU, University Erlangen-Nuremberg.
+// All rights reserved.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
+package storage
 
 import (
 	"database/sql"
@@ -12,19 +16,15 @@ import (
 
 type sqliteStorageConfig struct {
 	Type     string   `json:"type"`
-	Flags    []string `json:"flags,omitempty"`
 	Path     string   `json:"database_path"`
 	Username string   `json:"username,omitempty"`
 	Password string   `json:"password,omitempty"`
+	Flags    []string `json:"flags,omitempty"`
 }
 
 type sqliteStorage struct {
-	sqlStorage
 	config sqliteStorageConfig
-}
-
-type SqliteStorage interface {
-	SqlStorage
+	sqlStorage
 }
 
 func (s *sqliteStorage) Init(config json.RawMessage, stats *storageStats) error {

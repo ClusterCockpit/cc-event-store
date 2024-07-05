@@ -19,6 +19,7 @@ cc-event-client:
 swagger:
 	$(info ===>  GENERATE swagger)
 	@go run github.com/swaggo/swag/cmd/swag init -d ./internal/api -g api.go -o ./api
+	@go run github.com/swaggo/swag/cmd/swag fmt -d ./internal/api
 	@mv ./api/docs.go ./internal/api/docs.go
 
 clean:

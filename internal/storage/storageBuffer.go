@@ -1,4 +1,8 @@
-package storage2
+// Copyright (C) NHR@FAU, University Erlangen-Nuremberg.
+// All rights reserved.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
+package storage
 
 import (
 	"sync"
@@ -41,8 +45,8 @@ func (b *storageBuffer) Get() []*lp.CCMessage {
 }
 
 func (b *storageBuffer) Clear() {
-	//b.buffer = b.buffer[:0]
-	//clear(b.buffer)
+	// b.buffer = b.buffer[:0]
+	// clear(b.buffer)
 	b.buffer = nil
 }
 

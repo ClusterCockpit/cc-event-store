@@ -1,3 +1,7 @@
+// Copyright (C) NHR@FAU, University Erlangen-Nuremberg.
+// All rights reserved.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
 package main
 
 import (
@@ -59,13 +63,16 @@ func (r *router) Start() error {
 	cclog.ComponentDebug("Router", "STARTED")
 	return nil
 }
+
 func (r *router) Close() {
 	cclog.ComponentDebug("Router", "CLOSE")
 	r.done <- true
 }
+
 func (r *router) SetInput(input chan lp.CCMetric) {
 	r.input = input
 }
+
 func (r *router) SetOutput(output chan *lp2.CCMessage) {
 	r.output = output
 }
