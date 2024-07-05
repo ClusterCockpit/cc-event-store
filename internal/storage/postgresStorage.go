@@ -16,12 +16,12 @@ import (
 
 type postgresStorageConfig struct {
 	Type              string   `json:"type"`
-	Flags             []string `json:"flags,omitempty"`
 	Path              string   `json:"database_path"`
 	Username          string   `json:"username,omitempty"`
 	Password          string   `json:"password,omitempty"`
-	ConnectionTimeout int      `json:"connection_timeout,omitempty"`
 	Server            string   `json:"server,omitempty"`
+	Flags             []string `json:"flags,omitempty"`
+	ConnectionTimeout int      `json:"connection_timeout,omitempty"`
 	Port              int      `json:"port,omitempty"`
 }
 
