@@ -42,10 +42,10 @@ var MetricToSchema map[string]string = map[string]string{
 }
 
 type sqlStorage struct {
+	handle    *sql.DB
+	tablesMap map[string]struct{}
 	storage
-	handle     *sql.DB
 	tablesLock sync.RWMutex
-	tablesMap  map[string]struct{}
 }
 
 type SqlStorage interface {

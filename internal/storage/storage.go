@@ -11,9 +11,9 @@ import (
 )
 
 type storage struct {
+	stats *storageStats
 	name  string
 	uri   string
-	stats *storageStats
 }
 
 type Storage interface {
