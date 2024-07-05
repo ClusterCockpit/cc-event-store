@@ -38,7 +38,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "query"
+                    "GET"
                 ],
                 "summary": "Query events",
                 "parameters": [
@@ -80,6 +80,49 @@ const docTemplate = `{
                 }
             }
         },
+        "/stats/": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Retrieve event store status",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "GET"
+                ],
+                "summary": "Get status",
+                "responses": {
+                    "200": {
+                        "description": "ok",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/write/": {
             "post": {
                 "security": [
@@ -95,7 +138,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "write"
+                    "POST"
                 ],
                 "summary": "Receive events",
                 "parameters": [
@@ -143,7 +186,7 @@ const docTemplate = `{
                 "data": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/api.ApiMetricDataEntry"
                     }
                 },
                 "error": {
@@ -153,6 +196,17 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "to": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.ApiMetricDataEntry": {
+            "type": "object",
+            "properties": {
+                "Event": {
+                    "type": "string"
+                },
+                "timestamp": {
                     "type": "integer"
                 }
             }

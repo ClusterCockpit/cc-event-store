@@ -4,13 +4,20 @@ definitions:
     properties:
       data:
         items:
-          type: string
+          $ref: '#/definitions/api.ApiMetricDataEntry'
         type: array
       error:
         type: string
       from:
         type: integer
       to:
+        type: integer
+    type: object
+  api.ApiMetricDataEntry:
+    properties:
+      Event:
+        type: string
+      timestamp:
         type: integer
     type: object
   api.ApiQuery:
@@ -119,7 +126,34 @@ paths:
       - ApiKeyAuth: []
       summary: Query events
       tags:
-      - query
+      - GET
+  /stats/:
+    get:
+      description: Retrieve event store status
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: ok
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get status
+      tags:
+      - GET
   /write/:
     post:
       consumes:
@@ -155,7 +189,7 @@ paths:
       - ApiKeyAuth: []
       summary: Receive events
       tags:
-      - write
+      - POST
 securityDefinitions:
   ApiKeyAuth:
     in: header
