@@ -30,10 +30,6 @@ type postgresStorage struct {
 	config postgresStorageConfig
 }
 
-type PostgresStorage interface {
-	SqlStorage
-}
-
 func (s *postgresStorage) Init(config json.RawMessage, stats *storageStats) error {
 	s.name = "PostgresStorage"
 	s.config.Server = "localhost"

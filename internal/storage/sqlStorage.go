@@ -48,10 +48,6 @@ type sqlStorage struct {
 	tablesLock sync.RWMutex
 }
 
-type SqlStorage interface {
-	Storage
-}
-
 func (s *sqlStorage) PreInit(config json.RawMessage, stats *storageStats) error {
 	cclog.ComponentDebug(s.name, "PreInit")
 	s.tablesMap = make(map[string]struct{})

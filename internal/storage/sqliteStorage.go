@@ -16,19 +16,15 @@ import (
 
 type sqliteStorageConfig struct {
 	Type     string   `json:"type"`
-	Flags    []string `json:"flags,omitempty"`
 	Path     string   `json:"database_path"`
 	Username string   `json:"username,omitempty"`
 	Password string   `json:"password,omitempty"`
+	Flags    []string `json:"flags,omitempty"`
 }
 
 type sqliteStorage struct {
-	sqlStorage
 	config sqliteStorageConfig
-}
-
-type SqliteStorage interface {
-	SqlStorage
+	sqlStorage
 }
 
 func (s *sqliteStorage) Init(config json.RawMessage, stats *storageStats) error {
