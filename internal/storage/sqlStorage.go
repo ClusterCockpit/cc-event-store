@@ -238,13 +238,12 @@ func (s *sqlStorage) Write(msgs []*lp.CCMessage) error {
 			err := s.CreateTable(tablename)
 			stmt := fmt.Sprintf(createTableStmt, tablename)
 			cclog.ComponentDebug(s.name, "Creating table ", tablename)
-			res, err := s.handle.Exec(stmt)
+			_, err = s.handle.Exec(stmt)
 			if err != nil {
 				s.stats.UpdateError("write_create_table_failed", 1)
 				s.tablesLock.RUnlock()
 				continue
 			}
-			defer res.Close()
 			s.tablesLock.RUnlock()
 			s.tablesLock.Lock()
 			// No futher check whether the table already exists
@@ -307,11 +306,10 @@ func (s *sqlStorage) Write(msgs []*lp.CCMessage) error {
 		// cclog.ComponentDebug(s.name, isql)
 
 		// Execute the SQL statement with args inside the SQL transaction
-		res, err = tx.Exec(isql, args...)
+		_, err = tx.Exec(isql, args...)
 		if err != nil {
 			s.stats.UpdateError("write_sql_exec_failed", 1)
 		}
-		defer res.Close()
 		s.stats.UpdateStats("writes", 1)
 	}
 
