@@ -8,14 +8,13 @@ import (
 	"errors"
 	"sync"
 
-	lp2 "github.com/ClusterCockpit/cc-energy-manager/pkg/cc-message"
+	lp "github.com/ClusterCockpit/cc-energy-manager/pkg/cc-message"
 	cclog "github.com/ClusterCockpit/cc-metric-collector/pkg/ccLogger"
-	lp "github.com/ClusterCockpit/cc-metric-collector/pkg/ccMetric"
 )
 
 type router struct {
-	input      chan lp.CCMetric
-	output     chan *lp2.CCMessage
+	input      chan lp.CCMessage
+	output     chan *lp.CCMessage
 	done       chan bool
 	wg         *sync.WaitGroup
 	maxForward int
@@ -24,16 +23,16 @@ type router struct {
 type Router interface {
 	Start() error
 	Close()
-	SetInput(input chan lp.CCMetric)
-	SetOutput(output chan *lp2.CCMessage)
+	SetInput(input chan lp.CCMessage)
+	SetOutput(output chan *lp.CCMessage)
 }
 
 func (r *router) Start() error {
 	cclog.ComponentDebug("Router", "START")
 	empty_meta := make(map[string]string)
 
-	toCCMessage := func(msg lp.CCMetric) *lp2.CCMessage {
-		x, err := lp2.NewMessage(msg.Name(), msg.Tags(), empty_meta, msg.Fields(), msg.Time())
+	toCCMessage := func(msg lp.CCMessage) *lp.CCMessage {
+		x, err := lp.NewMessage(msg.Name(), msg.Tags(), empty_meta, msg.Fields(), msg.Time())
 		if err != nil {
 			return nil
 		}
@@ -69,11 +68,11 @@ func (r *router) Close() {
 	r.done <- true
 }
 
-func (r *router) SetInput(input chan lp.CCMetric) {
+func (r *router) SetInput(input chan lp.CCMessage) {
 	r.input = input
 }
 
-func (r *router) SetOutput(output chan *lp2.CCMessage) {
+func (r *router) SetOutput(output chan *lp.CCMessage) {
 	r.output = output
 }
 

@@ -11,15 +11,15 @@ import (
 )
 
 type storageBuffer struct {
-	buffer []*lp.CCMessage
+	buffer []lp.CCMessage
 	lock   sync.RWMutex
 }
 
 type StorageBuffer interface {
 	Lock()
 	Unlock()
-	Add(msg *lp.CCMessage)
-	Get() []*lp.CCMessage
+	Add(msg lp.CCMessage)
+	Get() []lp.CCMessage
 	Clear()
 	Len() int
 }
@@ -36,11 +36,11 @@ func (b *storageBuffer) Len() int {
 	return len(b.buffer)
 }
 
-func (b *storageBuffer) Add(msg *lp.CCMessage) {
+func (b *storageBuffer) Add(msg lp.CCMessage) {
 	b.buffer = append(b.buffer, msg)
 }
 
-func (b *storageBuffer) Get() []*lp.CCMessage {
+func (b *storageBuffer) Get() []lp.CCMessage {
 	return b.buffer
 }
 
@@ -56,13 +56,13 @@ func (b *storageBuffer) LenLocked() int {
 	return b.Len()
 }
 
-func (b *storageBuffer) AddLocked(msg *lp.CCMessage) {
+func (b *storageBuffer) AddLocked(msg lp.CCMessage) {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	b.Add(msg)
 }
 
-func (b *storageBuffer) GetLocked() []*lp.CCMessage {
+func (b *storageBuffer) GetLocked() []lp.CCMessage {
 	b.lock.RLock()
 	defer b.lock.RUnlock()
 	return b.Get()
@@ -76,7 +76,7 @@ func (b *storageBuffer) ClearLocked() {
 
 func NewStorageBuffer(cap int) (StorageBuffer, error) {
 	b := new(storageBuffer)
-	b.buffer = make([]*lp.CCMessage, 0, cap)
+	b.buffer = make([]lp.CCMessage, 0, cap)
 	b.lock = sync.RWMutex{}
 	return b, nil
 }

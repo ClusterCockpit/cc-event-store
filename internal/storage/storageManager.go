@@ -49,7 +49,7 @@ type storageManager struct {
 	scheduler     gocron.Scheduler
 	store         Storage
 	buffer        StorageBuffer
-	input         chan *lp.CCMessage
+	input         chan lp.CCMessage
 	flushTimer    *time.Timer
 	done          chan struct{}
 	wg            *sync.WaitGroup
@@ -91,8 +91,8 @@ type StorageManager interface {
 	Close()
 	Start()
 	Query(request QueryRequest) (QueryResult, error)
-	SetInput(input chan *lp.CCMessage)
-	GetInput() chan *lp.CCMessage
+	SetInput(input chan lp.CCMessage)
+	GetInput() chan lp.CCMessage
 	Stats() StorageManagerStats
 }
 
@@ -179,11 +179,10 @@ func (sm *storageManager) Start() {
 	)
 	sm.wg.Add(1)
 	go func() {
-		to_buffer_or_write_batch := func(msg *lp.CCMessage) {
-			mymsg := *msg
-			if lp.IsEvent(mymsg) || (lp.IsLog(mymsg) && sm.config.StoreLogs) {
+		to_buffer_or_write_batch := func(msg lp.CCMessage) {
+			if lp.IsEvent(msg) || (lp.IsLog(msg) && sm.config.StoreLogs) {
 				if sm.buffer.Len() < sm.config.BatchSize {
-					cclog.ComponentDebug("StorageManager", "Append to buffer", mymsg)
+					cclog.ComponentDebug("StorageManager", "Append to buffer", msg)
 					sm.buffer.Add(msg)
 				} else {
 					cclog.ComponentDebug("StorageManager", "Write batch of", sm.buffer.Len(), "messages")
@@ -254,11 +253,11 @@ func (sm *storageManager) Query(request QueryRequest) (QueryResult, error) {
 	return QueryResult{Results: make([]QueryResultEvent, 0), Error: err}, err
 }
 
-func (sm *storageManager) SetInput(input chan *lp.CCMessage) {
+func (sm *storageManager) SetInput(input chan lp.CCMessage) {
 	sm.input = input
 }
 
-func (sm *storageManager) GetInput() chan *lp.CCMessage {
+func (sm *storageManager) GetInput() chan lp.CCMessage {
 	return sm.input
 }
 

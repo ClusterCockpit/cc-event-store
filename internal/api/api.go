@@ -260,7 +260,7 @@ func (a *api) HandleWrite(w http.ResponseWriter, r *http.Request) {
 
 		ch := a.store.GetInput()
 		if ch != nil {
-			ch <- &y
+			ch <- y
 		}
 	}
 	err := d.Err()

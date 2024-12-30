@@ -101,7 +101,7 @@ func TestCloseManager(t *testing.T) {
 
 func TestWriteManager(t *testing.T) {
 	var wg sync.WaitGroup
-	ch := make(chan *lp.CCMessage, 10)
+	ch := make(chan lp.CCMessage, 10)
 
 	err := Write_testconfig(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
@@ -149,7 +149,7 @@ func TestWriteManager(t *testing.T) {
 	sm.Close()
 }
 
-func gen_parallel_for_manager(ch chan *lp.CCMessage, mlist []lp.CCMessage) func(b *testing.B) {
+func gen_parallel_for_manager(ch chan lp.CCMessage, mlist []lp.CCMessage) func(b *testing.B) {
 	return func(b *testing.B) {
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
@@ -164,7 +164,7 @@ func gen_parallel_for_manager(ch chan *lp.CCMessage, mlist []lp.CCMessage) func(
 func BenchmarkWriteManagerParallel(b *testing.B) {
 	var wg sync.WaitGroup
 	num_threads := 16
-	ch := make(chan *lp.CCMessage, 20)
+	ch := make(chan lp.CCMessage, 20)
 
 	err := Write_testconfig(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
@@ -210,7 +210,7 @@ func BenchmarkWriteManagerParallel(b *testing.B) {
 
 func TestQueryManager(t *testing.T) {
 	var wg sync.WaitGroup
-	ch := make(chan *lp.CCMessage, 10)
+	ch := make(chan lp.CCMessage, 10)
 
 	err := Write_testconfig(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 	if err != nil {
@@ -247,7 +247,7 @@ func TestQueryManager(t *testing.T) {
 		return
 	}
 	for _, m := range mlist {
-		ch <- &m
+		ch <- m
 	}
 
 	request := QueryRequest{

@@ -19,7 +19,7 @@ type storage struct {
 type Storage interface {
 	Init(config json.RawMessage, stats *storageStats) error
 	Query(request QueryRequest) (QueryResult, error)
-	Write(msg []*lp.CCMessage) error
+	Write(msg []lp.CCMessage) error
 	Delete(to int64) error
 	Close()
 }

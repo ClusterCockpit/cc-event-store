@@ -171,7 +171,7 @@ func (s *sqlStorage) CreateTable(tablename string) error {
 	return nil
 }
 
-func (s *sqlStorage) Write(msgs []*lp.CCMessage) error {
+func (s *sqlStorage) Write(msgs []lp.CCMessage) error {
 	if s.handle == nil {
 		s.stats.UpdateError("not_initialized", 1)
 		return errors.New("cannot write, not initialized")
@@ -192,7 +192,7 @@ func (s *sqlStorage) Write(msgs []*lp.CCMessage) error {
 	defer tx.Rollback()
 
 	for _, msg := range msgs {
-		if msg == nil || *msg == nil {
+		if msg == nil {
 			continue
 		}
 		// Clear maps we reuse in this iteration
@@ -202,24 +202,24 @@ func (s *sqlStorage) Write(msgs []*lp.CCMessage) error {
 		// message itself. As a workaround we could get the hostlist
 		// of each cluster from Cluster Cockpit and resolve it in
 		// cases the message does not contain the 'cluster' tag
-		if _, ok := (*msg).GetTag(CLUSTER_TAG_KEY); !ok {
+		if _, ok := msg.GetTag(CLUSTER_TAG_KEY); !ok {
 			s.stats.UpdateError("write_no_cluster_tag", 1)
 			continue
 		}
-		cluster, _ := (*msg).GetTag(CLUSTER_TAG_KEY)
+		cluster, _ := msg.GetTag(CLUSTER_TAG_KEY)
 		// Depending whether the table should handle CCEvent or
 		// CCLog messages, we add it to the cluster name.
 		// Moreover, we get the event or log string and add it
 		// to the colargs map
 		tablename := cluster
-		if lp.IsEvent(*msg) {
+		if lp.IsEvent(msg) {
 			tablename += "_" + EVENT_FIELD_KEY + "s"
-			if x, ok := (*msg).GetField(EVENT_FIELD_KEY); ok {
+			if x, ok := msg.GetField(EVENT_FIELD_KEY); ok {
 				colargs[MetricToSchema[EVENT_FIELD_KEY]] = x
 			}
-		} else if lp.IsLog(*msg) {
+		} else if lp.IsLog(msg) {
 			tablename += "_" + LOG_FIELD_KEY + "s"
-			if x, ok := (*msg).GetField(LOG_FIELD_KEY); ok {
+			if x, ok := msg.GetField(LOG_FIELD_KEY); ok {
 				colargs[MetricToSchema[LOG_FIELD_KEY]] = x
 			}
 		} else {
@@ -255,13 +255,13 @@ func (s *sqlStorage) Write(msgs []*lp.CCMessage) error {
 		}
 
 		// Add the info that is always present in a CCMessage
-		colargs["timestamp"] = (*msg).Time().Unix()
-		colargs["name"] = (*msg).Name()
+		colargs["timestamp"] = msg.Time().Unix()
+		colargs["name"] = msg.Name()
 
 		// Iterate over the tags and check which one should
 		// be part of colargs and which are stored in the
 		// JSON field 'othertags'
-		for k, v := range (*msg).Tags() {
+		for k, v := range msg.Tags() {
 			if colname, ok := MetricToSchema[k]; ok {
 				// Filters out all tags with
 				// MetricToSchema[tag key] = ""
