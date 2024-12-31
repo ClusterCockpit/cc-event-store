@@ -136,14 +136,14 @@ func TestWriteManager(t *testing.T) {
 	}
 	for _, m := range mlist {
 		t.Log(m)
-		ch <- &m
+		ch <- m
 	}
 
 	// time.Sleep(time.Second * 2)
 	mlist, _ = Generate_metrics(10)
 	for _, m := range mlist {
 		t.Log(m)
-		ch <- &m
+		ch <- m
 	}
 	time.Sleep(time.Second)
 	sm.Close()
@@ -154,7 +154,7 @@ func gen_parallel_for_manager(ch chan lp.CCMessage, mlist []lp.CCMessage) func(b
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
 				for _, msg := range mlist {
-					ch <- &msg
+					ch <- msg
 				}
 			}
 		})

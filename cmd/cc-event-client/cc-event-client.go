@@ -27,11 +27,12 @@ const (
 	DefaultFakeEventString string = "This is my event"
 	DefaultFakePort        int    = 4222
 	DefaultFakePrint       bool   = false
+	DefaultFakeDebug       bool   = false
 )
 
 func main() {
 	var uinfo nats.Option = nil
-	var conn nats.Conn
+	var conn *nats.Conn
 	myhostname, err := os.Hostname()
 	if err != nil {
 		log.Fatalf("failed to get hostname: %v", err.Error())
@@ -48,9 +49,14 @@ func main() {
 	server := flag.String("server", DefaultFakeServer, "NATS server to connect")
 	port := flag.Int("port", DefaultFakePort, "NATS server port")
 	print := flag.Bool("print", DefaultFakePrint, "Print message only but do not send")
+	debug := flag.Bool("debug", DefaultFakeDebug, "Output debug information")
 	fmt.Println("Helper tool to send events to NATS as CCEvent")
 	fmt.Println()
 	flag.Parse()
+
+	if *debug {
+		cclog.SetDebug()
+	}
 
 	if len(*user) > 0 && len(*password) > 0 {
 		uinfo = nats.UserInfo(*user, *password)
@@ -65,12 +71,11 @@ func main() {
 
 	if !*print {
 		uri := fmt.Sprintf("nats://%s:%d", *server, *port)
-		conn, err := nats.Connect(uri, uinfo)
+		conn, err = nats.Connect(uri, uinfo)
 		if err != nil {
 			cclog.Error(err.Error())
 			return
 		}
-		defer conn.Close()
 		cclog.Debug("Connected to ", uri)
 	}
 
@@ -86,9 +91,10 @@ func main() {
 		uri := fmt.Sprintf("nats://%s:%d", *server, *port)
 		cclog.Debug("Publishing")
 		cclog.Debug(msg.String())
-		conn.Publish(*subject, []byte(msg.ToLineProtocol(nil)))
+		conn.Publish(*subject, []byte(msg.ToLineProtocol(map[string]bool{})))
 		conn.Flush()
-		cclog.Debug("Closing connection to", uri)
+		cclog.Debug("Closing connection to ", uri)
+		conn.Close()
 	} else {
 		fmt.Println(msg.String())
 	}

@@ -14,7 +14,7 @@ import (
 
 type router struct {
 	input      chan lp.CCMessage
-	output     chan *lp.CCMessage
+	output     chan lp.CCMessage
 	done       chan bool
 	wg         *sync.WaitGroup
 	maxForward int
@@ -24,19 +24,19 @@ type Router interface {
 	Start() error
 	Close()
 	SetInput(input chan lp.CCMessage)
-	SetOutput(output chan *lp.CCMessage)
+	SetOutput(output chan lp.CCMessage)
 }
 
 func (r *router) Start() error {
 	cclog.ComponentDebug("Router", "START")
 	empty_meta := make(map[string]string)
 
-	toCCMessage := func(msg lp.CCMessage) *lp.CCMessage {
+	toCCMessage := func(msg lp.CCMessage) lp.CCMessage {
 		x, err := lp.NewMessage(msg.Name(), msg.Tags(), empty_meta, msg.Fields(), msg.Time())
 		if err != nil {
 			return nil
 		}
-		return &x
+		return x
 	}
 
 	r.wg.Add(1)
@@ -72,7 +72,7 @@ func (r *router) SetInput(input chan lp.CCMessage) {
 	r.input = input
 }
 
-func (r *router) SetOutput(output chan *lp.CCMessage) {
+func (r *router) SetOutput(output chan lp.CCMessage) {
 	r.output = output
 }
 
