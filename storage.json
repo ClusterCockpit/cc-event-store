@@ -1,0 +1,10 @@
+{
+    "retention_time": "48h",
+    "flush_time": "10s",
+    "backend" : {
+        "type" : "sqlite",
+        "database_path" : "./mydata.db",
+        "username" : "myuser",
+        "password" : "mypass"
+    }
+}
