@@ -12,8 +12,8 @@ import (
 	"strings"
 	"sync"
 
-	lp "github.com/ClusterCockpit/cc-energy-manager/pkg/cc-message"
-	cclog "github.com/ClusterCockpit/cc-metric-collector/pkg/ccLogger"
+	cclog "github.com/ClusterCockpit/cc-lib/ccLogger"
+	lp "github.com/ClusterCockpit/cc-lib/ccMessage"
 	sq "github.com/Masterminds/squirrel"
 )
 
@@ -212,12 +212,12 @@ func (s *sqlStorage) Write(msgs []lp.CCMessage) error {
 		// Moreover, we get the event or log string and add it
 		// to the colargs map
 		tablename := cluster
-		if lp.IsEvent(msg) {
+		if msg.IsEvent() {
 			tablename += "_" + EVENT_FIELD_KEY + "s"
 			if x, ok := msg.GetField(EVENT_FIELD_KEY); ok {
 				colargs[MetricToSchema[EVENT_FIELD_KEY]] = x
 			}
-		} else if lp.IsLog(msg) {
+		} else if msg.IsLog() {
 			tablename += "_" + LOG_FIELD_KEY + "s"
 			if x, ok := msg.GetField(LOG_FIELD_KEY); ok {
 				colargs[MetricToSchema[LOG_FIELD_KEY]] = x

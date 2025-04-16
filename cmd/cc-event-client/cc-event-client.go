@@ -11,8 +11,8 @@ import (
 	"os"
 	"time"
 
-	lp "github.com/ClusterCockpit/cc-energy-manager/pkg/cc-message"
-	cclog "github.com/ClusterCockpit/cc-metric-collector/pkg/ccLogger"
+	cclog "github.com/ClusterCockpit/cc-lib/ccLogger"
+	lp "github.com/ClusterCockpit/cc-lib/ccMessage"
 	"github.com/nats-io/nats.go"
 )
 
@@ -54,9 +54,11 @@ func main() {
 	fmt.Println()
 	flag.Parse()
 
+	lvl := "error"
 	if *debug {
-		cclog.SetDebug()
+		lvl = "debug"
 	}
+	cclog.Init(lvl, false)
 
 	if len(*user) > 0 && len(*password) > 0 {
 		uinfo = nats.UserInfo(*user, *password)

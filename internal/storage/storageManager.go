@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	lp "github.com/ClusterCockpit/cc-energy-manager/pkg/cc-message"
-	cclog "github.com/ClusterCockpit/cc-metric-collector/pkg/ccLogger"
+	cclog "github.com/ClusterCockpit/cc-lib/ccLogger"
+	lp "github.com/ClusterCockpit/cc-lib/ccMessage"
 	"github.com/go-co-op/gocron/v2"
 )
 
@@ -180,7 +180,7 @@ func (sm *storageManager) Start() {
 	sm.wg.Add(1)
 	go func() {
 		to_buffer_or_write_batch := func(msg lp.CCMessage) {
-			if lp.IsEvent(msg) || (lp.IsLog(msg) && sm.config.StoreLogs) {
+			if msg.IsEvent() || (msg.IsLog() && sm.config.StoreLogs) {
 				if sm.buffer.Len() < sm.config.BatchSize {
 					cclog.ComponentDebug("StorageManager", "Append to buffer", msg)
 					sm.buffer.Add(msg)

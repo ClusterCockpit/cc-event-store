@@ -13,9 +13,9 @@ import (
 	"slices"
 	"time"
 
-	lp "github.com/ClusterCockpit/cc-energy-manager/pkg/cc-message"
 	storage "github.com/ClusterCockpit/cc-event-store/internal/storage"
-	cclog "github.com/ClusterCockpit/cc-metric-collector/pkg/ccLogger"
+	cclog "github.com/ClusterCockpit/cc-lib/ccLogger"
+	lp "github.com/ClusterCockpit/cc-lib/ccMessage"
 	influx "github.com/influxdata/line-protocol/v2/lineprotocol"
 )
 

@@ -16,7 +16,7 @@ import (
 	"time"
 
 	storage "github.com/ClusterCockpit/cc-event-store/internal/storage"
-	cclog "github.com/ClusterCockpit/cc-metric-collector/pkg/ccLogger"
+	cclog "github.com/ClusterCockpit/cc-lib/ccLogger"
 	httpSwagger "github.com/swaggo/http-swagger"
 )
 
@@ -133,7 +133,7 @@ func (a *api) Init(wg *sync.WaitGroup, store storage.StorageManager, apiConfigFi
 
 	addr := fmt.Sprintf("%s:%s", a.config.Addr, a.config.Port)
 	if a.config.EnableSwaggerUI {
-		cclog.ComponentInfo("REST", "Enable Swagger UI")
+		cclog.ComponentDebug("REST", "Enable Swagger UI")
 		r.HandleFunc("GET /swagger/", httpSwagger.Handler(
 			httpSwagger.URL("http://"+addr+"/swagger/doc.json")))
 	}

@@ -12,12 +12,12 @@ import (
 	"sync"
 	"syscall"
 
-	lp "github.com/ClusterCockpit/cc-energy-manager/pkg/cc-message"
 	"github.com/ClusterCockpit/cc-event-store/internal/api"
 	storage "github.com/ClusterCockpit/cc-event-store/internal/storage"
-	cclog "github.com/ClusterCockpit/cc-metric-collector/pkg/ccLogger"
-
-	"github.com/ClusterCockpit/cc-metric-collector/receivers"
+	config "github.com/ClusterCockpit/cc-lib/ccConfig"
+	cclog "github.com/ClusterCockpit/cc-lib/ccLogger"
+	lp "github.com/ClusterCockpit/cc-lib/ccMessage"
+	"github.com/ClusterCockpit/cc-lib/receivers"
 )
 
 type RuntimeConfig struct {
@@ -59,7 +59,7 @@ func ReadCli() map[string]string {
 	m["logfile"] = *logfile
 	if *debug {
 		m["debug"] = "true"
-		cclog.SetDebug()
+		//cclog.SetDebug()
 	} else {
 		m["debug"] = "false"
 	}
@@ -96,19 +96,27 @@ func shutdownHandler(config *RuntimeConfig, shutdownSignal chan os.Signal) {
 }
 
 func mainFunc() int {
-	var config CentralConfig
+	//var runConfig CentralConfig
 	cliopts := ReadCli()
 
-	LoadCentralConfiguration(cliopts["configfile"], &config)
+	lvl := "error"
+	if cliopts["debug"] == "true" {
+		lvl = "debug"
+	}
+	cclog.Init(lvl, false)
+
+	config.Init(cliopts["configfile"])
+
+	//LoadCentralConfiguration(cliopts["configfile"], &config)
 
 	var rcfg RuntimeConfig
-	ReceiveManager, err := receivers.New(&rcfg.wg, config.ReceiverConfigFile)
+	ReceiveManager, err := receivers.New(&rcfg.wg, config.GetPackageConfig("receiver"))
 	if err != nil {
 		cclog.Error(err.Error())
 		return -1
 	}
 
-	s, err := storage.NewStorageManager(&rcfg.wg, config.StorageConfigFile)
+	s, err := storage.NewStorageManager(&rcfg.wg, string(config.GetPackageConfig("storage")))
 	if err != nil {
 		cclog.Error(err.Error())
 		return -1
@@ -122,7 +130,7 @@ func mainFunc() int {
 	}
 	rcfg.router = r
 
-	a, err := api.NewAPI(&rcfg.wg, rcfg.storageEngine, config.ApiConfigFile)
+	a, err := api.NewAPI(&rcfg.wg, rcfg.storageEngine, string(config.GetPackageConfig("api")))
 	if err != nil {
 		cclog.Error(err.Error())
 		return -1
