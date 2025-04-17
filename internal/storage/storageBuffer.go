@@ -7,7 +7,7 @@ package storage
 import (
 	"sync"
 
-	lp "github.com/ClusterCockpit/cc-energy-manager/pkg/cc-message"
+	lp "github.com/ClusterCockpit/cc-lib/ccMessage"
 )
 
 type storageBuffer struct {

@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	cclog "github.com/ClusterCockpit/cc-metric-collector/pkg/ccLogger"
+	cclog "github.com/ClusterCockpit/cc-lib/ccLogger"
 	sq "github.com/Masterminds/squirrel"
 	_ "github.com/lib/pq"
 )

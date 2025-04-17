@@ -11,8 +11,8 @@ import (
 	"os"
 	"time"
 
-	lp "github.com/ClusterCockpit/cc-energy-manager/pkg/cc-message"
-	cclog "github.com/ClusterCockpit/cc-metric-collector/pkg/ccLogger"
+	cclog "github.com/ClusterCockpit/cc-lib/ccLogger"
+	lp "github.com/ClusterCockpit/cc-lib/ccMessage"
 	"github.com/nats-io/nats.go"
 )
 
@@ -30,47 +30,61 @@ const (
 	DefaultFakeDebug       bool   = false
 )
 
-func main() {
-	var uinfo nats.Option = nil
-	var conn *nats.Conn
+var (
+	flagVersion, flagLogDateTime                           bool
+	flagCluster, flagSubject, flagConfigFile, flagLogLevel string
+	flagUser, flagPassword, flagNkey, flagName, flagEvent  string
+	flagServer, flagHostname                               string
+	flagPort                                               int64
+	flagPrint                                              bool
+)
+
+func ReadCli() {
 	myhostname, err := os.Hostname()
 	if err != nil {
 		log.Fatalf("failed to get hostname: %v", err.Error())
 		os.Exit(1)
 	}
-	cluster := flag.String("cluster", DefaultFakeCluster, "Cluster name")
-	subject := flag.String("subject", DefaultFakeNatsSubject, "NATS subject")
-	user := flag.String("username", DefaultFakeNatsUser, "NATS username")
-	password := flag.String("password", DefaultFakeNatsPass, "NATS password")
-	nkey := flag.String("nkeyfile", DefaultFakeNatsNkey, "NATS NKEY file")
-	name := flag.String("name", DefaultFakeEventName, "Event name to use when creating the CCEvent")
-	event := flag.String("event", DefaultFakeEventString, "Event string to send")
-	hostname := flag.String("hostname", myhostname, "Hostname used for starting the job")
-	server := flag.String("server", DefaultFakeServer, "NATS server to connect")
-	port := flag.Int("port", DefaultFakePort, "NATS server port")
-	print := flag.Bool("print", DefaultFakePrint, "Print message only but do not send")
-	debug := flag.Bool("debug", DefaultFakeDebug, "Output debug information")
+	flag.StringVar(&flagConfigFile, "config", "./config.json", "Path to configuration file")
+	flag.StringVar(&flagLogLevel, "loglevel", "warn", "Sets the logging level: `[debug,info,warn (default),err,fatal,crit]`")
+	flag.BoolVar(&flagLogDateTime, "logdate", false, "Set this flag to add date and time to log messages")
+	flag.BoolVar(&flagPrint, "print", DefaultFakePrint, "Print message only but do not send")
+	flag.StringVar(&flagCluster, "cluster", DefaultFakeCluster, "Cluster name")
+	flag.StringVar(&flagSubject, "subject", DefaultFakeNatsSubject, "NATS subject")
+	flag.StringVar(&flagUser, "username", DefaultFakeNatsUser, "NATS username")
+	flag.StringVar(&flagPassword, "password", DefaultFakeNatsPass, "NATS password")
+	flag.StringVar(&flagNkey, "nkeyfile", DefaultFakeNatsNkey, "NATS NKEY file")
+	flag.StringVar(&flagName, "name", DefaultFakeEventName, "Event name to use when creating the CCEvent")
+	flag.StringVar(&flagEvent, "event", DefaultFakeEventString, "Event string to send")
+	flag.StringVar(&flagHostname, "hostname", myhostname, "Hostname used for starting the job")
+	flag.StringVar(&flagServer, "server", DefaultFakeServer, "NATS server to connect")
+	flag.StringVar(&flagCluster, "cluster", DefaultFakeCluster, "Cluster to use")
+	flag.Int64Var(&flagPort, "port", int64(DefaultFakePort), "NATS server port")
+	flag.Parse()
+}
+
+func main() {
+	var err error
+	var uinfo nats.Option = nil
+	var conn *nats.Conn
+	ReadCli()
+	cclog.Init(flagLogLevel, flagLogDateTime)
 	fmt.Println("Helper tool to send events to NATS as CCEvent")
 	fmt.Println()
-	flag.Parse()
 
-	if *debug {
-		cclog.SetDebug()
+	if len(flagUser) > 0 && len(flagPassword) > 0 {
+		uinfo = nats.UserInfo(flagUser, flagPassword)
 	}
-
-	if len(*user) > 0 && len(*password) > 0 {
-		uinfo = nats.UserInfo(*user, *password)
-	}
-	if len(*nkey) > 0 {
-		if _, err := os.Stat(*nkey); err == nil {
-			uinfo = nats.UserCredentials(*nkey)
+	if len(flagNkey) > 0 {
+		if _, err := os.Stat(flagNkey); err == nil {
+			uinfo = nats.UserCredentials(flagNkey)
 		} else {
-			cclog.Error("Cannot use NATS NKEY file ", *nkey, ":", err.Error())
+			cclog.Error("Cannot use NATS NKEY file ", flagNkey, ":", err.Error())
 		}
 	}
 
-	if !*print {
-		uri := fmt.Sprintf("nats://%s:%d", *server, *port)
+	if !flagPrint {
+		uri := fmt.Sprintf("nats://%s:%d", flagServer, flagPort)
 		conn, err = nats.Connect(uri, uinfo)
 		if err != nil {
 			cclog.Error(err.Error())
@@ -79,19 +93,19 @@ func main() {
 		cclog.Debug("Connected to ", uri)
 	}
 
-	msg, err := lp.NewEvent(*name, map[string]string{
-		"cluster":  *cluster,
-		"hostname": *hostname,
-	}, nil, *event, time.Now())
+	msg, err := lp.NewEvent(flagName, map[string]string{
+		"cluster":  flagCluster,
+		"hostname": flagHostname,
+	}, nil, flagEvent, time.Now())
 	if err != nil {
 		cclog.Error("Failed to create event message:", err.Error())
 	}
 
-	if !*print {
-		uri := fmt.Sprintf("nats://%s:%d", *server, *port)
+	if !flagPrint {
+		uri := fmt.Sprintf("nats://%s:%d", flagServer, flagPort)
 		cclog.Debug("Publishing")
 		cclog.Debug(msg.String())
-		conn.Publish(*subject, []byte(msg.ToLineProtocol(map[string]bool{})))
+		conn.Publish(flagSubject, []byte(msg.ToLineProtocol(map[string]bool{})))
 		conn.Flush()
 		cclog.Debug("Closing connection to ", uri)
 		conn.Close()

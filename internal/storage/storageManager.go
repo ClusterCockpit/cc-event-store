@@ -7,12 +7,12 @@ package storage
 import (
 	"encoding/json"
 	"fmt"
-	"os"
+	"maps"
 	"sync"
 	"time"
 
-	lp "github.com/ClusterCockpit/cc-energy-manager/pkg/cc-message"
-	cclog "github.com/ClusterCockpit/cc-metric-collector/pkg/ccLogger"
+	cclog "github.com/ClusterCockpit/cc-lib/ccLogger"
+	lp "github.com/ClusterCockpit/cc-lib/ccMessage"
 	"github.com/go-co-op/gocron/v2"
 )
 
@@ -64,7 +64,7 @@ type storageManager struct {
 type QueryCondition struct {
 	Pred      string
 	Operation string
-	Args      []interface{}
+	Args      []any
 }
 
 type QueryRequest struct {
@@ -131,7 +131,7 @@ func (sm *storageManager) Flush() {
 			sm.stats.UpdateStats("flushed", int64(sm.buffer.Len()))
 			sm.buffer.Clear()
 			if len(sm.input) > 0 {
-				for i := 0; i < len(sm.input); i++ {
+				for range len(sm.input) {
 					sm.buffer.Add(<-sm.input)
 				}
 				if sm.buffer.Len() > 0 {
@@ -180,7 +180,7 @@ func (sm *storageManager) Start() {
 	sm.wg.Add(1)
 	go func() {
 		to_buffer_or_write_batch := func(msg lp.CCMessage) {
-			if lp.IsEvent(msg) || (lp.IsLog(msg) && sm.config.StoreLogs) {
+			if msg.IsEvent() || (msg.IsLog() && sm.config.StoreLogs) {
 				if sm.buffer.Len() < sm.config.BatchSize {
 					cclog.ComponentDebug("StorageManager", "Append to buffer", msg)
 					sm.buffer.Add(msg)
@@ -272,21 +272,13 @@ func (sm *storageManager) Stats() StorageManagerStats {
 	}
 
 	sm.stats.lock.Lock()
-	for k, v := range sm.stats.Errors {
-		manager.Errors[k] = v
-	}
-	for k, v := range sm.stats.Stats {
-		manager.Stats[k] = v
-	}
+	maps.Copy(manager.Errors, sm.stats.Errors)
+	maps.Copy(manager.Stats, sm.stats.Stats)
 	sm.stats.lock.Unlock()
 
 	sm.storeStats.lock.Lock()
-	for k, v := range sm.storeStats.Errors {
-		backend.Errors[k] = v
-	}
-	for k, v := range sm.storeStats.Stats {
-		backend.Stats[k] = v
-	}
+	maps.Copy(backend.Errors, sm.storeStats.Errors)
+	maps.Copy(backend.Stats, sm.storeStats.Stats)
 	sm.storeStats.lock.Unlock()
 
 	return StorageManagerStats{
@@ -296,34 +288,27 @@ func (sm *storageManager) Stats() StorageManagerStats {
 	}
 }
 
-func NewStorageManager(wg *sync.WaitGroup, storageConfigFile string) (StorageManager, error) {
+func NewStorageManager(wg *sync.WaitGroup, rawConfig json.RawMessage) (StorageManager, error) {
+	var err error
 	sm := new(storageManager)
 	sm.input = nil
 	sm.store = nil
 
-	configFile, err := os.Open(storageConfigFile)
-	if err != nil {
-		cclog.Error(err.Error())
-		return nil, err
-	}
-	defer configFile.Close()
-
-	var config storageManagerConfig = storageManagerConfig{
+	cfg := storageManagerConfig{
 		BatchSize:  20,
 		MaxProcess: 10,
 		Retention:  "24h",
 		FlushTime:  "1s",
 		StoreLogs:  true,
 	}
-	jsonParser := json.NewDecoder(configFile)
-	err = jsonParser.Decode(&config)
-	if err != nil {
-		cclog.Error(err.Error())
+
+	if err = json.Unmarshal(rawConfig, &cfg); err != nil {
+		cclog.Warn("Error while unmarshaling raw config json")
 		return nil, err
 	}
 
-	if len(config.Retention) > 0 {
-		t, err := time.ParseDuration(config.Retention)
+	if len(cfg.Retention) > 0 {
+		t, err := time.ParseDuration(cfg.Retention)
 		if err != nil {
 			cclog.ComponentError("StorageManager", err.Error())
 			return nil, err
@@ -333,8 +318,8 @@ func NewStorageManager(wg *sync.WaitGroup, storageConfigFile string) (StorageMan
 		cclog.ComponentError("StorageManager", "Retention time cannot be empty")
 		return nil, err
 	}
-	if len(config.Retention) > 0 {
-		t, err := time.ParseDuration(config.FlushTime)
+	if len(cfg.Retention) > 0 {
+		t, err := time.ParseDuration(cfg.FlushTime)
 		if err != nil {
 			cclog.ComponentError("StorageManager", err.Error())
 			return nil, err
@@ -346,12 +331,12 @@ func NewStorageManager(wg *sync.WaitGroup, storageConfigFile string) (StorageMan
 		Type string `json:"type"`
 	}
 
-	err = json.Unmarshal(config.Backend, &backendConfig)
+	err = json.Unmarshal(cfg.Backend, &backendConfig)
 	if err != nil {
 		cclog.Error(err.Error())
 		return nil, err
 	}
-	sm.config = config
+	sm.config = cfg
 
 	if _, ok := AvailableStorageBackends[backendConfig.Type]; !ok {
 		err = fmt.Errorf("unknown storage type %s", backendConfig.Type)
@@ -366,7 +351,7 @@ func NewStorageManager(wg *sync.WaitGroup, storageConfigFile string) (StorageMan
 		return nil, err
 	}
 
-	err = s.Init(config.Backend, &sm.storeStats)
+	err = s.Init(cfg.Backend, &sm.storeStats)
 	if err != nil {
 		cclog.Error(err.Error())
 		return nil, err
@@ -389,8 +374,8 @@ func NewStorageManager(wg *sync.WaitGroup, storageConfigFile string) (StorageMan
 	sm.wg = wg
 	sm.buffer = b
 	sm.info = make(map[string]string)
-	sm.info["retention_time"] = config.Retention
-	sm.info["flush_time"] = config.FlushTime
+	sm.info["retention_time"] = cfg.Retention
+	sm.info["flush_time"] = cfg.FlushTime
 	sm.info["backend_type"] = backendConfig.Type
 
 	return sm, nil

@@ -11,12 +11,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"sync"
 	"time"
 
 	storage "github.com/ClusterCockpit/cc-event-store/internal/storage"
-	cclog "github.com/ClusterCockpit/cc-metric-collector/pkg/ccLogger"
+	cclog "github.com/ClusterCockpit/cc-lib/ccLogger"
 	httpSwagger "github.com/swaggo/http-swagger"
 )
 
@@ -48,7 +47,7 @@ type api struct {
 }
 
 type API interface {
-	Init(wg *sync.WaitGroup, store storage.StorageManager, apiConfigFile string) error
+	Init(wg *sync.WaitGroup, store storage.StorageManager, rawConfig json.RawMessage) error
 	Start()
 	Close()
 }
@@ -86,7 +85,8 @@ type ApiMetricDataEntry struct {
 	Time  int64  `json:"timestamp"`
 }
 
-func (a *api) Init(wg *sync.WaitGroup, store storage.StorageManager, apiConfigFile string) error {
+func (a *api) Init(wg *sync.WaitGroup, store storage.StorageManager, rawConfig json.RawMessage) error {
+	var err error
 	a.wg = wg
 	a.store = store
 	a.started = false
@@ -97,18 +97,8 @@ func (a *api) Init(wg *sync.WaitGroup, store storage.StorageManager, apiConfigFi
 	// should be larger than the measurement interval to keep the connection open
 	a.config.IdleTimeout = "120s"
 
-	// Read config
-	configFile, err := os.Open(apiConfigFile)
-	if err != nil {
-		cclog.Error(err.Error())
-		return err
-	}
-	defer configFile.Close()
-	jsonParser := json.NewDecoder(configFile)
-	err = jsonParser.Decode(&a.config)
-	if err != nil {
-		err = fmt.Errorf("failed to parse API config file %s: %v", apiConfigFile, err.Error())
-		cclog.ComponentError("REST", err.Error())
+	if err = json.Unmarshal(rawConfig, &a.config); err != nil {
+		cclog.Warn("Error while unmarshaling raw config json")
 		return err
 	}
 
@@ -133,7 +123,7 @@ func (a *api) Init(wg *sync.WaitGroup, store storage.StorageManager, apiConfigFi
 
 	addr := fmt.Sprintf("%s:%s", a.config.Addr, a.config.Port)
 	if a.config.EnableSwaggerUI {
-		cclog.ComponentInfo("REST", "Enable Swagger UI")
+		cclog.Info("Enable Swagger UI")
 		r.HandleFunc("GET /swagger/", httpSwagger.Handler(
 			httpSwagger.URL("http://"+addr+"/swagger/doc.json")))
 	}
@@ -170,10 +160,10 @@ func (a *api) Close() {
 	}
 }
 
-func NewAPI(wg *sync.WaitGroup, store storage.StorageManager, apiConfigFile string) (API, error) {
+func NewAPI(wg *sync.WaitGroup, store storage.StorageManager, rawConfig json.RawMessage) (API, error) {
 	a := new(api)
 
-	err := a.Init(wg, store, apiConfigFile)
+	err := a.Init(wg, store, rawConfig)
 	if err != nil {
 		err = fmt.Errorf("failed to create new API: %v", err.Error())
 		cclog.ComponentError("REST", err.Error())

@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	lp "github.com/ClusterCockpit/cc-energy-manager/pkg/cc-message"
-	cclog "github.com/ClusterCockpit/cc-metric-collector/pkg/ccLogger"
+	cclog "github.com/ClusterCockpit/cc-lib/ccLogger"
+	lp "github.com/ClusterCockpit/cc-lib/ccMessage"
 )
 
 const (
@@ -24,13 +24,7 @@ const (
 	TEST_CONFIG_NAME = `testing.json`
 )
 
-func Write_testconfig(filename string) error {
-	f, err := os.Create(filename)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
+func generateTestconfig() (json.RawMessage, error) {
 	config := storageManagerConfig{
 		Backend:    json.RawMessage(fmt.Sprintf(`{"type" : "sqlite", "database_path" : "%s/%s", "flags" : ["_journal=WAL", "_timeout=5000", "_fk=true"] }`, TEST_DB_PATH, TEST_DB_NAME)),
 		BatchSize:  10,
@@ -41,11 +35,10 @@ func Write_testconfig(filename string) error {
 
 	b, err := json.MarshalIndent(config, "", " ")
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	f.Write(b)
-	return nil
+	return b, nil
 }
 
 func Generate_metrics(count int) ([]lp.CCMessage, error) {
@@ -62,17 +55,14 @@ func Generate_metrics(count int) ([]lp.CCMessage, error) {
 
 func TestNewManager(t *testing.T) {
 	var wg sync.WaitGroup
+	cclog.Init("debug", false)
 
-	err := Write_testconfig(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
+	cfg, err := generateTestconfig()
 	if err != nil {
 		t.Error(err.Error())
 		return
 	}
-	t.Cleanup(func() {
-		os.Remove(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
-	})
-	cclog.SetDebug()
-	_, err = NewStorageManager(&wg, fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
+	_, err = NewStorageManager(&wg, cfg)
 	if err != nil {
 		t.Error(err.Error())
 		return
@@ -81,17 +71,15 @@ func TestNewManager(t *testing.T) {
 
 func TestCloseManager(t *testing.T) {
 	var wg sync.WaitGroup
+	cclog.Init("debug", false)
 
-	err := Write_testconfig(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
+	cfg, err := generateTestconfig()
 	if err != nil {
 		t.Error(err.Error())
 		return
 	}
-	t.Cleanup(func() {
-		os.Remove(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
-	})
 
-	sm, err := NewStorageManager(&wg, fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
+	sm, err := NewStorageManager(&wg, cfg)
 	if err != nil {
 		t.Error(err.Error())
 		return
@@ -101,17 +89,14 @@ func TestCloseManager(t *testing.T) {
 
 func TestWriteManager(t *testing.T) {
 	var wg sync.WaitGroup
+	cclog.Init("debug", false)
 	ch := make(chan lp.CCMessage, 10)
 
-	err := Write_testconfig(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
+	cfg, err := generateTestconfig()
 	if err != nil {
 		t.Error(err.Error())
 	}
-	t.Cleanup(func() {
-		os.Remove(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
-	})
-	cclog.SetDebug()
-	sm, err := NewStorageManager(&wg, fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
+	sm, err := NewStorageManager(&wg, cfg)
 	if err != nil {
 		t.Error(err.Error())
 	}
@@ -120,7 +105,6 @@ func TestWriteManager(t *testing.T) {
 	sm.Start()
 
 	t.Cleanup(func() {
-		os.Remove(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 		dbfiles, err := filepath.Glob(fmt.Sprintf("%s/%s*", TEST_DB_PATH, TEST_DB_NAME))
 		if err != nil {
 			t.Error(err.Error())
@@ -163,15 +147,16 @@ func gen_parallel_for_manager(ch chan lp.CCMessage, mlist []lp.CCMessage) func(b
 
 func BenchmarkWriteManagerParallel(b *testing.B) {
 	var wg sync.WaitGroup
+	cclog.Init("debug", false)
 	num_threads := 16
 	ch := make(chan lp.CCMessage, 20)
 
-	err := Write_testconfig(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
+	cfg, err := generateTestconfig()
 	if err != nil {
 		b.Error(err.Error())
 		return
 	}
-	sm, err := NewStorageManager(&wg, fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
+	sm, err := NewStorageManager(&wg, cfg)
 	if err != nil {
 		b.Error(err.Error())
 		return
@@ -180,7 +165,6 @@ func BenchmarkWriteManagerParallel(b *testing.B) {
 	sm.Start()
 	b.Cleanup(func() {
 		sm.Close()
-		os.Remove(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
 		dbfiles, err := filepath.Glob(fmt.Sprintf("%s/%s*", TEST_DB_PATH, TEST_DB_NAME))
 		if err != nil {
 			b.Error(err.Error())
@@ -210,18 +194,15 @@ func BenchmarkWriteManagerParallel(b *testing.B) {
 
 func TestQueryManager(t *testing.T) {
 	var wg sync.WaitGroup
+	cclog.Init("debug", false)
 	ch := make(chan lp.CCMessage, 10)
 
-	err := Write_testconfig(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
+	cfg, err := generateTestconfig()
 	if err != nil {
 		t.Error(err.Error())
 		return
 	}
-	t.Cleanup(func() {
-		os.Remove(fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
-	})
-	cclog.SetDebug()
-	sm, err := NewStorageManager(&wg, fmt.Sprintf("%s/%s", TEST_CONFIG_PATH, TEST_CONFIG_NAME))
+	sm, err := NewStorageManager(&wg, cfg)
 	if err != nil {
 		t.Error(err.Error())
 		return

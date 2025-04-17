@@ -13,9 +13,9 @@ import (
 	"slices"
 	"time"
 
-	lp "github.com/ClusterCockpit/cc-energy-manager/pkg/cc-message"
 	storage "github.com/ClusterCockpit/cc-event-store/internal/storage"
-	cclog "github.com/ClusterCockpit/cc-metric-collector/pkg/ccLogger"
+	cclog "github.com/ClusterCockpit/cc-lib/ccLogger"
+	lp "github.com/ClusterCockpit/cc-lib/ccMessage"
 	influx "github.com/influxdata/line-protocol/v2/lineprotocol"
 )
 
@@ -120,13 +120,13 @@ func (a *api) HandleQuery(w http.ResponseWriter, r *http.Request) {
 			conditions = append(conditions, storage.QueryCondition{
 				Pred:      "type-id",
 				Operation: "==",
-				Args:      []interface{}{t},
+				Args:      []any{t},
 			})
 			if len(*q.Type) > 0 {
 				conditions = append(conditions, storage.QueryCondition{
 					Pred:      "type",
 					Operation: "==",
-					Args:      []interface{}{*q.Type},
+					Args:      []any{*q.Type},
 				})
 			}
 			if len(q.SubTypeIds) > 0 {
@@ -135,14 +135,14 @@ func (a *api) HandleQuery(w http.ResponseWriter, r *http.Request) {
 					subconditions = append(conditions, storage.QueryCondition{
 						Pred:      "stype",
 						Operation: "==",
-						Args:      []interface{}{*q.SubType},
+						Args:      []any{*q.SubType},
 					})
 				}
 				for _, st := range q.SubTypeIds {
 					subconditions = append(conditions, storage.QueryCondition{
 						Pred:      "stype-id",
 						Operation: "==",
-						Args:      []interface{}{st},
+						Args:      []any{st},
 					})
 				}
 				d, err := do_query(req.Cluster, q.Event, q.Hostname, req.From, req.To, subconditions)
@@ -226,7 +226,7 @@ func (a *api) HandleWrite(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Decode fields
-		fields := make(map[string]interface{})
+		fields := make(map[string]any)
 		for {
 			key, value, err := d.NextField()
 			if err != nil {

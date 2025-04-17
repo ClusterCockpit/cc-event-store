@@ -7,7 +7,7 @@ package storage
 import (
 	"encoding/json"
 
-	lp "github.com/ClusterCockpit/cc-energy-manager/pkg/cc-message"
+	lp "github.com/ClusterCockpit/cc-lib/ccMessage"
 )
 
 type storage struct {

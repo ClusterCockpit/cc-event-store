@@ -12,8 +12,8 @@ import (
 	"strings"
 	"sync"
 
-	lp "github.com/ClusterCockpit/cc-energy-manager/pkg/cc-message"
-	cclog "github.com/ClusterCockpit/cc-metric-collector/pkg/ccLogger"
+	cclog "github.com/ClusterCockpit/cc-lib/ccLogger"
+	lp "github.com/ClusterCockpit/cc-lib/ccMessage"
 	sq "github.com/Masterminds/squirrel"
 )
 
@@ -75,11 +75,12 @@ func (s *sqlStorage) Query(request QueryRequest) (QueryResult, error) {
 		return QueryResult{}, errors.New("cannot query, not initialized")
 	}
 	tablename := request.Cluster
-	if request.QueryType == QueryTypeEvent {
+	switch request.QueryType {
+	case QueryTypeEvent:
 		tablename += "_" + EVENT_FIELD_KEY + "s"
-	} else if request.QueryType == QueryTypeLog {
+	case QueryTypeLog:
 		tablename += "_" + LOG_FIELD_KEY + "s"
-	} else {
+	default:
 		s.stats.UpdateError("query_unknown_type", 1)
 		return QueryResult{}, errors.New("unknown query type in request")
 	}
@@ -179,7 +180,7 @@ func (s *sqlStorage) Write(msgs []lp.CCMessage) error {
 	dbhandle := s.handle
 	cclog.ComponentDebug(s.name, "Write")
 	othertags := make(map[string]string)
-	colargs := make(map[string]interface{})
+	colargs := make(map[string]any)
 
 	// Begin a new SQL transaction
 	tx, err := dbhandle.Begin()
@@ -212,12 +213,12 @@ func (s *sqlStorage) Write(msgs []lp.CCMessage) error {
 		// Moreover, we get the event or log string and add it
 		// to the colargs map
 		tablename := cluster
-		if lp.IsEvent(msg) {
+		if msg.IsEvent() {
 			tablename += "_" + EVENT_FIELD_KEY + "s"
 			if x, ok := msg.GetField(EVENT_FIELD_KEY); ok {
 				colargs[MetricToSchema[EVENT_FIELD_KEY]] = x
 			}
-		} else if lp.IsLog(msg) {
+		} else if msg.IsLog() {
 			tablename += "_" + LOG_FIELD_KEY + "s"
 			if x, ok := msg.GetField(LOG_FIELD_KEY); ok {
 				colargs[MetricToSchema[LOG_FIELD_KEY]] = x
@@ -235,6 +236,7 @@ func (s *sqlStorage) Write(msgs []lp.CCMessage) error {
 		// lock) and adding (write lock).
 		s.tablesLock.RLock()
 		if _, ok := s.tablesMap[tablename]; !ok {
+			// valuie of err is never used
 			err := s.CreateTable(tablename)
 			stmt := fmt.Sprintf(createTableStmt, tablename)
 			cclog.ComponentDebug(s.name, "Creating table ", tablename)
