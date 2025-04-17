@@ -1,3 +1,15 @@
+<!--
+---
+title: REST API
+description: REST API of cc-event-store
+categories: [cc-event-store]
+tags: ['Admin']
+weight: 1
+hugo_path: docs/reference/cc-event-store/api/_index.md
+---
+-->
+
+
 # REST API component
 
 ## Configuration

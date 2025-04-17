@@ -58,7 +58,6 @@ func ReadCli() {
 	flag.StringVar(&flagEvent, "event", DefaultFakeEventString, "Event string to send")
 	flag.StringVar(&flagHostname, "hostname", myhostname, "Hostname used for starting the job")
 	flag.StringVar(&flagServer, "server", DefaultFakeServer, "NATS server to connect")
-	flag.StringVar(&flagCluster, "cluster", DefaultFakeCluster, "Cluster to use")
 	flag.Int64Var(&flagPort, "port", int64(DefaultFakePort), "NATS server port")
 	flag.Parse()
 }

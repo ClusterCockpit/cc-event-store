@@ -46,6 +46,7 @@ func (r *router) Start() error {
 				select {
 				case <-r.done:
 					r.wg.Done()
+					close(r.done)
 					cclog.ComponentDebug("Router", "DONE")
 					return
 				case e := <-r.input:
@@ -69,10 +70,12 @@ func (r *router) Close() {
 }
 
 func (r *router) SetInput(input chan lp.CCMessage) {
+	cclog.ComponentDebug("Router", "SET INPUT")
 	r.input = input
 }
 
 func (r *router) SetOutput(output chan lp.CCMessage) {
+	cclog.ComponentDebug("Router", "SET OUTPUT")
 	r.output = output
 }
 
@@ -81,5 +84,6 @@ func NewRouter(wg *sync.WaitGroup) (Router, error) {
 	r.maxForward = 10
 	r.done = make(chan bool)
 	r.wg = wg
+	cclog.ComponentDebug("Router", "NEW")
 	return r, nil
 }

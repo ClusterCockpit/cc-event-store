@@ -1,3 +1,15 @@
+<!--
+---
+title: cc-event-store
+description: Storage server for event and log messages
+categories: [cc-event-store]
+tags: ['Admin']
+weight: 1
+hugo_path: docs/reference/cc-event-store/_index.md
+---
+-->
+
+
 # cc-event-store
 
 A simple short-term store for job and system events as well as logs in the ClusterCockpit ecosystem. Event and Logs were introduced
@@ -8,9 +20,10 @@ specifcation at [cc-specification](https://github.com/ClusterCockpit/cc-specific
 
 ```json
 {
-    "receiver" : "/path/to/receiver/config/file",
-    "storage" : "/path/to/storage/config/file",
-    "api" : "/path/to/api/config/file"
+    "main": {},
+    "receiver-file" : "/path/to/receiver/config/file",
+    "storage-file" : "/path/to/storage/config/file",
+    "api-file" : "/path/to/api/config/file"
 }
 ```
 
@@ -29,5 +42,7 @@ The `cc-event-store` has 4 components that are coupled together in the binary.
 
 This also explains why `cc-event-store` uses multiple configuration files, all coupled by a central configuration file. Each component has its own configuration file which makes it possible to reuse the receivers from [`cc-metric-collector`](https://github.com/ClusterCockpit/cc-metric-collector) without any changes, it just requires its configuration file.
 
+# cc-event-client
 
+Test client to send event or log messages over NATS
 

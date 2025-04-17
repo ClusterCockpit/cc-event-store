@@ -22,14 +22,18 @@ import (
 )
 
 var (
-	storageEngine                storage.StorageManager
-	receiveManager               receivers.ReceiveManager
 	ShutdownWG                   sync.WaitGroup
-	myRouter                     Router
-	myApi                        api.API
 	flagVersion, flagLogDateTime bool
 	flagConfigFile, flagLogLevel string
 )
+
+type RunConfig struct {
+	storageEngine  storage.StorageManager
+	receiveManager receivers.ReceiveManager
+	ShutdownWG     sync.WaitGroup
+	myRouter       Router
+	myApi          api.API
+}
 
 type CentralConfig struct {
 	ReceiverConfigFile string `json:"receivers"`
@@ -57,7 +61,7 @@ func ReadCli() {
 }
 
 // General shutdownHandler function that gets executed in case of interrupt or graceful shutdownHandler
-func shutdownHandler(shutdownSignal chan os.Signal) {
+func shutdownHandler(rcfg *RunConfig, shutdownSignal chan os.Signal) {
 	defer ShutdownWG.Done()
 
 	<-shutdownSignal
@@ -67,33 +71,39 @@ func shutdownHandler(shutdownSignal chan os.Signal) {
 
 	cclog.Info("Shutdown...")
 
-	if receiveManager != nil {
+	if rcfg.receiveManager != nil {
 		cclog.Debug("Shutdown ReceiveManager...")
-		receiveManager.Close()
+		rcfg.receiveManager.Close()
 	}
-	if myRouter != nil {
+	if rcfg.myRouter != nil {
 		cclog.Debug("Shutdown Router...")
-		myRouter.Close()
+		rcfg.myRouter.Close()
 	}
-	if storageEngine != nil {
+	if rcfg.storageEngine != nil {
 		cclog.Debug("Shutdown StorageManager...")
-		storageEngine.Close()
+		rcfg.storageEngine.Close()
 	}
-	if myApi != nil {
+	if rcfg.myApi != nil {
 		cclog.Debug("Shutdown REST API...")
-		myApi.Close()
+		rcfg.myApi.Close()
 	}
 }
 
 func mainFunc() int {
 	var err error
+	rcfg := RunConfig{
+		storageEngine:  nil,
+		myApi:          nil,
+		myRouter:       nil,
+		receiveManager: nil,
+	}
 
 	ReadCli()
 	cclog.Init(flagLogLevel, flagLogDateTime)
 	cfg.Init(flagConfigFile)
 
 	if cfg := cfg.GetPackageConfig("receivers"); cfg != nil {
-		receiveManager, err = receivers.New(&ShutdownWG, cfg)
+		rcfg.receiveManager, err = receivers.New(&rcfg.ShutdownWG, cfg)
 		if err != nil {
 			cclog.Error(err.Error())
 			return -1
@@ -104,7 +114,7 @@ func mainFunc() int {
 	}
 
 	if cfg := cfg.GetPackageConfig("storage"); cfg != nil {
-		storageEngine, err = storage.NewStorageManager(&ShutdownWG, cfg)
+		rcfg.storageEngine, err = storage.NewStorageManager(&rcfg.ShutdownWG, cfg)
 		if err != nil {
 			cclog.Error(err.Error())
 			return -1
@@ -114,14 +124,14 @@ func mainFunc() int {
 		return -1
 	}
 
-	myRouter, err := NewRouter(&ShutdownWG)
+	rcfg.myRouter, err = NewRouter(&rcfg.ShutdownWG)
 	if err != nil {
 		cclog.Error(err.Error())
 		return -1
 	}
 
 	if cfg := cfg.GetPackageConfig("api"); cfg != nil {
-		myApi, err = api.NewAPI(&ShutdownWG, storageEngine, cfg)
+		rcfg.myApi, err = api.NewAPI(&rcfg.ShutdownWG, rcfg.storageEngine, cfg)
 		if err != nil {
 			cclog.Error(err.Error())
 			return -1
@@ -134,23 +144,23 @@ func mainFunc() int {
 	// Connect receive manager to metric router
 	ReceiveToRouterChannel := make(chan lp.CCMessage, 200)
 	RouterToStorageChannel := make(chan lp.CCMessage, 200)
-	receiveManager.AddOutput(ReceiveToRouterChannel)
-	myRouter.SetInput(ReceiveToRouterChannel)
-	myRouter.SetOutput(RouterToStorageChannel)
-	storageEngine.SetInput(RouterToStorageChannel)
+	rcfg.receiveManager.AddOutput(ReceiveToRouterChannel)
+	rcfg.myRouter.SetInput(ReceiveToRouterChannel)
+	rcfg.myRouter.SetOutput(RouterToStorageChannel)
+	rcfg.storageEngine.SetInput(RouterToStorageChannel)
 
 	// Create shutdown handler
 	shutdownSignal := make(chan os.Signal, 1)
 	signal.Notify(shutdownSignal, os.Interrupt)
 	signal.Notify(shutdownSignal, syscall.SIGTERM)
 	ShutdownWG.Add(1)
-	go shutdownHandler(shutdownSignal)
+	go shutdownHandler(&rcfg, shutdownSignal)
 
-	storageEngine.Start()
-	myRouter.Start()
-	receiveManager.Start()
+	rcfg.storageEngine.Start()
+	rcfg.myRouter.Start()
+	rcfg.receiveManager.Start()
 
-	myApi.Start()
+	rcfg.myApi.Start()
 
 	// Wait that all goroutines finish
 	ShutdownWG.Wait()

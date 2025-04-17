@@ -364,6 +364,7 @@ func (s *sqlStorage) Delete(to int64) error {
 
 func (s *sqlStorage) Close() {
 	if s.handle != nil {
+		cclog.ComponentDebug(s.name, "CLOSE")
 		s.handle.Close()
 	}
 }

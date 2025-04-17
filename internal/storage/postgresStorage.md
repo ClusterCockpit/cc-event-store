@@ -1,3 +1,14 @@
+<!--
+---
+title: Storage backend for Postgres
+description: Storage backend for Postgres SQL databases
+categories: [cc-event-store]
+tags: ['Admin']
+weight: 1
+hugo_path: docs/reference/cc-event-store/storage/postgres.md
+---
+-->
+
 # Storage backend for Postgres
 
 ## Configuration

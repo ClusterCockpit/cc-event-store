@@ -21,5 +21,10 @@ type Storage interface {
 	Query(request QueryRequest) (QueryResult, error)
 	Write(msg []lp.CCMessage) error
 	Delete(to int64) error
+	GetName() string
 	Close()
+}
+
+func (s *storage) GetName() string {
+	return s.name
 }

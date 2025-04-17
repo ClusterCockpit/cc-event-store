@@ -19,6 +19,7 @@ import (
 var AvailableStorageBackends map[string]Storage = map[string]Storage{
 	"sqlite":   new(sqliteStorage),
 	"postgres": new(postgresStorage),
+	"stdout":   new(stdoutStorage),
 }
 
 type QueryRequestType int
@@ -103,13 +104,19 @@ func (sm *storageManager) Close() {
 	}
 	if sm.store != nil {
 		// Stop existing timer and immediately flush
+		cclog.ComponentDebug("StorageManager", "Stopping store ", sm.store.GetName())
 		if sm.flushTimer != nil {
+			cclog.ComponentDebug("StorageManager", "Stopping store timer")
 			if ok := sm.flushTimer.Stop(); ok {
+
 				sm.flushTimer = nil
+				cclog.ComponentDebug("StorageManager", "Unlocking store timer lock")
 				sm.timerLock.Unlock()
 			}
 		}
+		cclog.ComponentDebug("StorageManager", "Flushing store ", sm.store.GetName())
 		sm.Flush()
+		cclog.ComponentDebug("StorageManager", "Closing store ", sm.store.GetName())
 		sm.store.Close()
 	}
 	if sm.started {

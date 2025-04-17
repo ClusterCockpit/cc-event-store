@@ -1,3 +1,14 @@
+<!--
+---
+title: Storage backend for SQLite3
+description: Storage backend for SQLite3 SQL databases
+categories: [cc-event-store]
+tags: ['Admin']
+weight: 1
+hugo_path: docs/reference/cc-event-store/storage/sqlite.md
+---
+-->
+
 # Storage backend for SQLite3
 
 ## Configuration

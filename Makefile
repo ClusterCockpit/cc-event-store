@@ -26,7 +26,8 @@ swagger:
 clean:
 	$(info ===>  CLEAN)
 	@go clean
-	@rm -f $(TARGET)
+	@rm -f cc-event-store
+	@rm -f cc-event-client
 
 test:
 	$(info ===>  TESTING)
