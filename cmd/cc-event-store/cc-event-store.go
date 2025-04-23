@@ -22,18 +22,14 @@ import (
 )
 
 var (
+	StorageEngine                storage.StorageManager
+	ReceiveManager               receivers.ReceiveManager
 	ShutdownWG                   sync.WaitGroup
+	MyRouter                     Router
+	MyApi                        api.API
 	flagVersion, flagLogDateTime bool
 	flagConfigFile, flagLogLevel string
 )
-
-type RunConfig struct {
-	storageEngine  storage.StorageManager
-	receiveManager receivers.ReceiveManager
-	ShutdownWG     sync.WaitGroup
-	myRouter       Router
-	myApi          api.API
-}
 
 type CentralConfig struct {
 	ReceiverConfigFile string `json:"receivers"`
@@ -61,49 +57,45 @@ func ReadCli() {
 }
 
 // General shutdownHandler function that gets executed in case of interrupt or graceful shutdownHandler
-func shutdownHandler(rcfg *RunConfig, shutdownSignal chan os.Signal) {
-	defer ShutdownWG.Done()
-
+func shutdownHandler(shutdownSignal chan os.Signal) {
+	// Wait until we receive a UNIX Signal
 	<-shutdownSignal
+
 	// Remove shutdown handler
 	// every additional interrupt signal will stop without cleaning up
 	signal.Stop(shutdownSignal)
 
 	cclog.Info("Shutdown...")
 
-	if rcfg.receiveManager != nil {
+	if ReceiveManager != nil {
 		cclog.Debug("Shutdown ReceiveManager...")
-		rcfg.receiveManager.Close()
+		ReceiveManager.Close()
 	}
-	if rcfg.myRouter != nil {
+	if MyRouter != nil {
 		cclog.Debug("Shutdown Router...")
-		rcfg.myRouter.Close()
+		MyRouter.Close()
 	}
-	if rcfg.storageEngine != nil {
+	if StorageEngine != nil {
 		cclog.Debug("Shutdown StorageManager...")
-		rcfg.storageEngine.Close()
+		StorageEngine.Close()
 	}
-	if rcfg.myApi != nil {
+	if MyApi != nil {
 		cclog.Debug("Shutdown REST API...")
-		rcfg.myApi.Close()
+		MyApi.Close()
 	}
+
+	ShutdownWG.Done()
 }
 
 func mainFunc() int {
 	var err error
-	rcfg := RunConfig{
-		storageEngine:  nil,
-		myApi:          nil,
-		myRouter:       nil,
-		receiveManager: nil,
-	}
 
 	ReadCli()
 	cclog.Init(flagLogLevel, flagLogDateTime)
 	cfg.Init(flagConfigFile)
 
 	if cfg := cfg.GetPackageConfig("receivers"); cfg != nil {
-		rcfg.receiveManager, err = receivers.New(&rcfg.ShutdownWG, cfg)
+		ReceiveManager, err = receivers.New(&ShutdownWG, cfg)
 		if err != nil {
 			cclog.Error(err.Error())
 			return -1
@@ -114,7 +106,7 @@ func mainFunc() int {
 	}
 
 	if cfg := cfg.GetPackageConfig("storage"); cfg != nil {
-		rcfg.storageEngine, err = storage.NewStorageManager(&rcfg.ShutdownWG, cfg)
+		StorageEngine, err = storage.NewStorageManager(&ShutdownWG, cfg)
 		if err != nil {
 			cclog.Error(err.Error())
 			return -1
@@ -124,14 +116,14 @@ func mainFunc() int {
 		return -1
 	}
 
-	rcfg.myRouter, err = NewRouter(&rcfg.ShutdownWG)
+	MyRouter, err = NewRouter(&ShutdownWG)
 	if err != nil {
 		cclog.Error(err.Error())
 		return -1
 	}
 
 	if cfg := cfg.GetPackageConfig("api"); cfg != nil {
-		rcfg.myApi, err = api.NewAPI(&rcfg.ShutdownWG, rcfg.storageEngine, cfg)
+		MyApi, err = api.NewAPI(&ShutdownWG, StorageEngine, cfg)
 		if err != nil {
 			cclog.Error(err.Error())
 			return -1
@@ -144,23 +136,22 @@ func mainFunc() int {
 	// Connect receive manager to metric router
 	ReceiveToRouterChannel := make(chan lp.CCMessage, 200)
 	RouterToStorageChannel := make(chan lp.CCMessage, 200)
-	rcfg.receiveManager.AddOutput(ReceiveToRouterChannel)
-	rcfg.myRouter.SetInput(ReceiveToRouterChannel)
-	rcfg.myRouter.SetOutput(RouterToStorageChannel)
-	rcfg.storageEngine.SetInput(RouterToStorageChannel)
+	ReceiveManager.AddOutput(ReceiveToRouterChannel)
+	MyRouter.SetInput(ReceiveToRouterChannel)
+	MyRouter.SetOutput(RouterToStorageChannel)
+	StorageEngine.SetInput(RouterToStorageChannel)
 
 	// Create shutdown handler
 	shutdownSignal := make(chan os.Signal, 1)
 	signal.Notify(shutdownSignal, os.Interrupt)
 	signal.Notify(shutdownSignal, syscall.SIGTERM)
 	ShutdownWG.Add(1)
-	go shutdownHandler(&rcfg, shutdownSignal)
+	go shutdownHandler(shutdownSignal)
 
-	rcfg.storageEngine.Start()
-	rcfg.myRouter.Start()
-	rcfg.receiveManager.Start()
-
-	rcfg.myApi.Start()
+	StorageEngine.Start()
+	MyRouter.Start()
+	ReceiveManager.Start()
+	MyApi.Start()
 
 	// Wait that all goroutines finish
 	ShutdownWG.Wait()

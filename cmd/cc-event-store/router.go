@@ -39,8 +39,8 @@ func (r *router) Start() error {
 		return x
 	}
 
-	r.wg.Add(1)
 	if r.input != nil && r.output != nil {
+		r.wg.Add(1)
 		go func() {
 			for {
 				select {

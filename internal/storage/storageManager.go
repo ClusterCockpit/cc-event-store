@@ -19,7 +19,7 @@ import (
 var AvailableStorageBackends map[string]Storage = map[string]Storage{
 	"sqlite":   new(sqliteStorage),
 	"postgres": new(postgresStorage),
-	"stdout":   new(stdoutStorage),
+	// "stdout":   new(stdoutStorage),
 }
 
 type QueryRequestType int
