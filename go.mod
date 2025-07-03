@@ -8,7 +8,7 @@ require (
 	github.com/ClusterCockpit/cc-lib v0.1.1
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/go-co-op/gocron/v2 v2.9.0
-	github.com/golang-jwt/jwt/v4 v4.5.0
+	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/influxdata/line-protocol/v2 v2.2.1
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.22
