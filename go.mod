@@ -7,7 +7,7 @@ toolchain go1.24.2
 require (
 	github.com/ClusterCockpit/cc-lib v0.7.0
 	github.com/Masterminds/squirrel v1.5.4
-	github.com/go-co-op/gocron/v2 v2.16.4
+	github.com/go-co-op/gocron/v2 v2.16.5
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/influxdata/line-protocol/v2 v2.2.1
 	github.com/lib/pq v1.10.9
