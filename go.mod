@@ -10,7 +10,7 @@ require (
 	github.com/go-co-op/gocron/v2 v2.19.1
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/influxdata/line-protocol/v2 v2.2.1
-	github.com/lib/pq v1.10.9
+	github.com/lib/pq v1.11.2
 	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/nats-io/nats.go v1.48.0
 	github.com/swaggo/http-swagger v1.3.4
