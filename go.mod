@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/ClusterCockpit/cc-lib v1.0.2
 	github.com/Masterminds/squirrel v1.5.4
-	github.com/go-co-op/gocron/v2 v2.19.1
+	github.com/go-co-op/gocron/v2 v2.20.0
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/influxdata/line-protocol/v2 v2.2.1
 	github.com/lib/pq v1.12.1
