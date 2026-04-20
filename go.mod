@@ -10,7 +10,7 @@ require (
 	github.com/influxdata/line-protocol/v2 v2.2.1
 	github.com/lib/pq v1.12.3
 	github.com/mattn/go-sqlite3 v1.14.42
-	github.com/nats-io/nats.go v1.50.0
+	github.com/nats-io/nats.go v1.51.0
 	github.com/swaggo/http-swagger v1.3.4
 	github.com/swaggo/swag v1.16.6
 )
